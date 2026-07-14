@@ -133,6 +133,8 @@ table.dt tbody tr:hover td { background: #f8fafc; }
 .bd-amber { background: #fffbeb; color: var(--amber); }
 .bd-red   { background: #fef2f2; color: var(--red);   }
 .bd-navy  { background: #f1f5f9; color: var(--navy);  }
+.bd-danger { background: #fef2f2; color: var(--red);   }
+.bd-grey   { background: #f1f5f9; color: var(--muted); }
 
 /* Buttons */
 .btn {
