@@ -1,0 +1,73 @@
+/* iRecovery Base */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  margin: 0; padding: 0;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Bg-overlay pages (login, result pages) */
+body.bg-overlay {
+  background: url('../img/bg.jpg') center/cover fixed;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+body.bg-overlay::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: rgba(10,15,30,.72);
+  z-index: 0;
+}
+body.bg-overlay > * { position: relative; z-index: 1; }
+
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Feedback layout */
+.feedback-wrap {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  padding: 2.5rem 1rem;
+}
+.feedback-card {
+  background: var(--white);
+  border-radius: var(--rl);
+  padding: 2.5rem 2rem;
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  box-shadow: var(--shl);
+  animation: slideUp .35s ease;
+}
+@keyframes slideUp {
+  from { opacity:0; transform:translateY(14px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* Shared footer */
+.site-footer {
+  text-align: center;
+  padding: .85rem 1rem;
+  font-size: .8rem;
+  color: rgba(255,255,255,.5);
+}
+.site-footer a { color: rgba(255,255,255,.55); }
+.site-footer a:hover { color: #fff; }
+
+/* Submit button used in forms */
+.btn-submit {
+  display: flex; align-items: center; justify-content: center; gap: .4rem;
+  width: 100%; padding: .72rem 1.25rem;
+  background: var(--blue2);
+  color: var(--white);
+  border: none; border-radius: var(--r);
+  font-family: var(--font); font-size: .92rem; font-weight: 600;
+  cursor: pointer; transition: var(--ease);
+}
+.btn-submit:hover { background: var(--blue); transform: translateY(-1px); }
