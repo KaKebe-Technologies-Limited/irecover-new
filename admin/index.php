@@ -101,13 +101,13 @@ $pendingApproval = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='c
   <!-- ── Header ──────────────────────────────── -->
   <header class="dash-header">
     <a href="../index.php" class="hd-brand">
-      <img src="https://cdn-icons-png.flaticon.com/512/1570/1570887.png" alt="iRecovery">
+      <span class="hd-brand-ico"><i class="bi bi-shield-check"></i></span>
       iRecovery Admin
     </a>
     <div class="hd-right">
-      <a href="?mark_read=1" style="color:rgba(255,255,255,.75);position:relative;text-decoration:none;" title="Notifications" id="bellLink">
-        <i class="bi bi-bell-fill" style="font-size:1.1rem;"></i>
-        <?php if ($unread > 0): ?><span style="position:absolute;top:-4px;right:-5px;background:var(--amber);color:#fff;border-radius:50px;padding:.05rem .35rem;font-size:.6rem;font-weight:700;"><?= $unread ?></span><?php endif; ?>
+      <a href="?mark_read=1" class="hd-bell" title="Notifications" id="bellLink">
+        <i class="bi bi-bell-fill"></i>
+        <?php if ($unread > 0): ?><span class="nb-dot"><?= $unread ?></span><?php endif; ?>
       </a>
       <div class="user-pill">
         <div class="u-av"><?= strtoupper(substr($userId, 0, 1)) ?></div>
@@ -122,46 +122,69 @@ $pendingApproval = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='c
 
   <div class="page">
 
+    <!-- ── Welcome bar ───────────────────────── -->
+    <div class="welcome-bar">
+      <div>
+        <h1>
+          <i class="bi bi-speedometer2" style="color:var(--blue2);font-size:1.1rem;margin-right:.4rem;"></i>Welcome back, <?= htmlspecialchars($userId) ?>
+          <span class="role-tag"><i class="bi bi-<?= $isSuperAdmin ? 'shield-lock-fill' : 'person-badge-fill' ?>"></i> <?= $isSuperAdmin ? 'Super Admin' : 'Admin' ?></span>
+        </h1>
+        <p>System-wide overview across every station.</p>
+      </div>
+      <div class="welcome-chip"><i class="bi bi-calendar3"></i> <?= date('l, d F Y') ?></div>
+    </div>
+
+    <?php if ($pendingApproval > 0): ?>
+    <div class="alert-banner">
+      <div class="ab-ico"><i class="bi bi-unlock"></i></div>
+      <div>
+        <div class="ab-title"><?= $pendingApproval ?> payment<?= $pendingApproval > 1 ? 's' : '' ?> awaiting receipt approval</div>
+        <div class="ab-sub">Owners can't download their PDF receipt until you confirm these in the Payments tab.</div>
+      </div>
+      <button class="btn btn-warning" onclick="switchTab(document.getElementById('tabPayments'), 'tPayments')"><i class="bi bi-arrow-right-circle"></i> Review</button>
+    </div>
+    <?php endif; ?>
+
     <!-- ── Stat cards ────────────────────────── -->
     <div class="stats">
       <div class="sc sc-blue">
-        <div class="sc-ico" style="color:var(--blue)"><i class="bi bi-building"></i></div>
+        <div class="sc-ico"><i class="bi bi-building"></i></div>
         <div class="sc-val"><?= $stationCount ?></div>
-        <div class="sc-lbl">Stations<?php if ($isSuperAdmin): ?> <button onclick="openModal('addStation')" style="background:var(--blue);color:#fff;border:none;border-radius:4px;padding:.1rem .4rem;font-size:.65rem;cursor:pointer;margin-left:.3rem;">+</button><?php endif; ?></div>
+        <div class="sc-lbl">Stations<?php if ($isSuperAdmin): ?> <button class="sc-add-btn" onclick="openModal('addStation')" title="Add station">+</button><?php endif; ?></div>
       </div>
       <div class="sc sc-green">
-        <div class="sc-ico" style="color:var(--green)"><i class="bi bi-cloud-upload"></i></div>
+        <div class="sc-ico"><i class="bi bi-cloud-upload"></i></div>
         <div class="sc-val"><?= $foundCount ?></div>
         <div class="sc-lbl">Found Docs</div>
       </div>
       <div class="sc sc-amber">
-        <div class="sc-ico" style="color:var(--amber)"><i class="bi bi-flag"></i></div>
+        <div class="sc-ico"><i class="bi bi-flag"></i></div>
         <div class="sc-val"><?= $lostCount ?></div>
         <div class="sc-lbl">Lost Reports</div>
       </div>
       <div class="sc sc-navy">
-        <div class="sc-ico" style="color:var(--navy2)"><i class="bi bi-lightning-charge"></i></div>
+        <div class="sc-ico"><i class="bi bi-lightning-charge"></i></div>
         <div class="sc-val"><?= $matchCount ?></div>
         <div class="sc-lbl">New Matches</div>
       </div>
       <div class="sc sc-amber">
-        <div class="sc-ico" style="color:var(--amber)"><i class="bi bi-clock-history"></i></div>
+        <div class="sc-ico"><i class="bi bi-clock-history"></i></div>
         <div class="sc-val"><?= $pendingPay ?></div>
         <div class="sc-lbl">Pending Pay</div>
       </div>
       <div class="sc sc-green">
-        <div class="sc-ico" style="color:var(--green)"><i class="bi bi-phone"></i></div>
+        <div class="sc-ico"><i class="bi bi-phone"></i></div>
         <div class="sc-val"><?= $confirmedPay ?></div>
         <div class="sc-lbl">Payments</div>
       </div>
       <div class="sc sc-teal">
-        <div class="sc-ico" style="color:var(--teal)"><i class="bi bi-check2-circle"></i></div>
+        <div class="sc-ico"><i class="bi bi-check2-circle"></i></div>
         <div class="sc-val"><?= $collectedCount ?></div>
         <div class="sc-lbl">Collected</div>
       </div>
       <?php if ($pendingApproval > 0): ?>
       <div class="sc sc-amber">
-        <div class="sc-ico" style="color:var(--amber)"><i class="bi bi-unlock"></i></div>
+        <div class="sc-ico"><i class="bi bi-unlock"></i></div>
         <div class="sc-val"><?= $pendingApproval ?></div>
         <div class="sc-lbl">Awaiting Approval</div>
       </div>
@@ -174,7 +197,7 @@ $pendingApproval = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='c
     </div>
     <div class="tabs" id="tabBar">
       <button class="tab-btn active" onclick="switchTab(this,'tMatches')"><i class="bi bi-lightning-charge"></i> Matches<?php if ($matchCount > 0): ?><span class="nb"><?= $matchCount ?></span><?php endif; ?></button>
-      <button class="tab-btn" onclick="switchTab(this,'tPayments')"><i class="bi bi-phone"></i> Payments<?php if ($pendingApproval > 0): ?><span class="nb nb-amber"><?= $pendingApproval ?></span><?php endif; ?></button>
+      <button class="tab-btn" id="tabPayments" onclick="switchTab(this,'tPayments')"><i class="bi bi-phone"></i> Payments<?php if ($pendingApproval > 0): ?><span class="nb nb-amber"><?= $pendingApproval ?></span><?php endif; ?></button>
       <button class="tab-btn" onclick="switchTab(this,'tSearches')"><i class="bi bi-search"></i> Searches</button>
       <button class="tab-btn" onclick="switchTab(this,'tStations')"><i class="bi bi-building"></i> Stations</button>
       <button class="tab-btn" onclick="switchTab(this,'tFound')"><i class="bi bi-cloud-upload"></i> Found</button>

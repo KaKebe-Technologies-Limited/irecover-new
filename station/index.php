@@ -141,16 +141,16 @@ $unreadNotif = getUnreadCount($conn, 'station', $userId);
 
   <header class="dash-header">
     <a href="index.php" class="hd-brand">
-      <i class="bi bi-building" style="color:var(--teal);font-size:1.2rem;"></i>
+      <span class="hd-brand-ico"><i class="bi bi-building"></i></span>
       iRecovery Station
     </a>
     <div class="hd-right">
-      <a href="?mark_read=1" style="color:rgba(255,255,255,.75);position:relative;text-decoration:none;" title="Notifications">
-        <i class="bi bi-bell-fill" style="font-size:1.1rem;"></i>
-        <?php if ($unreadNotif > 0): ?><span style="position:absolute;top:-4px;right:-5px;background:var(--amber);color:#fff;border-radius:50px;padding:.05rem .35rem;font-size:.6rem;font-weight:700;"><?= $unreadNotif ?></span><?php endif; ?>
+      <a href="?mark_read=1" class="hd-bell" title="Notifications">
+        <i class="bi bi-bell-fill"></i>
+        <?php if ($unreadNotif > 0): ?><span class="nb-dot"><?= $unreadNotif ?></span><?php endif; ?>
       </a>
       <div class="user-pill">
-        <div class="u-av" style="background:var(--teal);"><?= strtoupper(substr($userId, 0, 1)) ?></div>
+        <div class="u-av"><?= strtoupper(substr($userId, 0, 1)) ?></div>
         <div><div class="u-nm"><?= htmlspecialchars($userId) ?></div><div class="u-role">Station Admin</div></div>
       </div>
       <a href="logout.php" class="btn-out"><i class="bi bi-box-arrow-right"></i> Logout</a>
@@ -159,35 +159,55 @@ $unreadNotif = getUnreadCount($conn, 'station', $userId);
 
   <div class="page">
 
+    <!-- ── Welcome bar ───────────────────────── -->
+    <div class="welcome-bar">
+      <div>
+        <h1><i class="bi bi-hand-thumbs-up-fill" style="color:var(--teal);font-size:1.1rem;margin-right:.4rem;"></i>Welcome back, <?= htmlspecialchars($userId) ?></h1>
+        <p>Here's what's happening at your station today.</p>
+      </div>
+      <div class="welcome-chip"><i class="bi bi-calendar3"></i> <?= date('l, d F Y') ?></div>
+    </div>
+
+    <?php if ($alertCount > 0): ?>
+    <div class="alert-banner">
+      <div class="ab-ico"><i class="bi bi-lightning-charge"></i></div>
+      <div>
+        <div class="ab-title"><?= $alertCount ?> active match<?= $alertCount > 1 ? 'es' : '' ?> need your attention</div>
+        <div class="ab-sub">Update payment status or verify a receipt code to release these documents.</div>
+      </div>
+      <button class="btn btn-warning" onclick="switchTab(document.getElementById('tabMatches'), 'tMatches')"><i class="bi bi-arrow-right-circle"></i> Review</button>
+    </div>
+    <?php endif; ?>
+
     <!-- ── Stat cards ────────────────────────── -->
     <div class="stats">
       <div class="sc sc-blue">
-        <div class="sc-ico" style="color:var(--blue)"><i class="bi bi-cloud-upload"></i></div>
+        <div class="sc-ico"><i class="bi bi-cloud-upload"></i></div>
         <div class="sc-val"><?= $totalFound ?></div>
         <div class="sc-lbl">Total Uploaded</div>
       </div>
       <div class="sc sc-navy">
-        <div class="sc-ico" style="color:var(--navy2)"><i class="bi bi-lightning-charge"></i></div>
+        <div class="sc-ico"><i class="bi bi-lightning-charge"></i></div>
         <div class="sc-val"><?= $alertCount ?></div>
         <div class="sc-lbl">Active Matches</div>
       </div>
       <div class="sc sc-green">
-        <div class="sc-ico" style="color:var(--green)"><i class="bi bi-phone"></i></div>
+        <div class="sc-ico"><i class="bi bi-phone"></i></div>
         <div class="sc-val"><?= $paidCount ?></div>
         <div class="sc-lbl">Payments</div>
       </div>
       <div class="sc sc-teal">
-        <div class="sc-ico" style="color:var(--teal)"><i class="bi bi-check2-circle"></i></div>
+        <div class="sc-ico"><i class="bi bi-check2-circle"></i></div>
         <div class="sc-val"><?= $collectedCount ?></div>
         <div class="sc-lbl">Collected</div>
       </div>
       <div class="sc sc-amber">
-        <div class="sc-ico" style="color:var(--amber)"><i class="bi bi-hourglass-split"></i></div>
+        <div class="sc-ico"><i class="bi bi-hourglass-split"></i></div>
         <div class="sc-val"><?= $pendingCount ?></div>
         <div class="sc-lbl">Pending</div>
       </div>
       <div class="sc sc-amber">
-        <div class="sc-ico" style="color:var(--amber)"><i class="bi bi-flag"></i></div>
+        <div class="sc-ico"><i class="bi bi-flag"></i></div>
         <div class="sc-val"><?= $rptCount ?></div>
         <div class="sc-lbl">Lost Reports</div>
       </div>
@@ -195,7 +215,7 @@ $unreadNotif = getUnreadCount($conn, 'station', $userId);
 
     <!-- ── Tabs ──────────────────────────────── -->
     <div class="tabs" id="tabBar">
-      <button class="tab-btn active" onclick="switchTab(this,'tMatches')"><i class="bi bi-lightning-charge"></i> Matches<?php if ($alertCount > 0): ?><span class="nb"><?= $alertCount ?></span><?php endif; ?></button>
+      <button class="tab-btn active" id="tabMatches" onclick="switchTab(this,'tMatches')"><i class="bi bi-lightning-charge"></i> Matches<?php if ($alertCount > 0): ?><span class="nb"><?= $alertCount ?></span><?php endif; ?></button>
       <button class="tab-btn" onclick="switchTab(this,'tFound')"><i class="bi bi-cloud-upload"></i> Found Docs</button>
       <button class="tab-btn" onclick="switchTab(this,'tVerify')"><i class="bi bi-shield-check"></i> Verify Code</button>
       <button class="tab-btn" onclick="switchTab(this,'tCollected')"><i class="bi bi-check2-circle"></i> Collected</button>
@@ -321,42 +341,51 @@ $unreadNotif = getUnreadCount($conn, 'station', $userId);
 
     <!-- ── Verify Receipt Code ────────────────── -->
     <div id="tVerify" class="tcard" style="display:none;">
-      <div class="verify-box">
-        <h6 class="mb-1"><i class="bi bi-shield-check me-2" style="color:var(--teal);"></i>Verify Receipt &amp; Release Document</h6>
-        <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">
-          Ask the owner for the <strong>verification code</strong> printed on their PDF receipt. Enter it below to confirm payment and release the document.
-        </p>
-        <form method="POST">
-          <label class="fl">Receipt Verification Code</label>
-          <input type="text" name="code" class="fc code-input" placeholder="XXXX-XXXX-XX" autocomplete="off" value="<?= htmlspecialchars($_POST['code'] ?? '') ?>" required>
-          <button type="submit" name="verify_code" class="btn btn-teal btn-block mt-3"><i class="bi bi-shield-check"></i> Verify &amp; Prepare Release</button>
-        </form>
+      <div class="verify-grid">
+        <div class="verify-box">
+          <h6 class="mb-1"><i class="bi bi-shield-check me-2" style="color:var(--teal);"></i>Verify Receipt &amp; Release Document</h6>
+          <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">
+            Ask the owner for the <strong>verification code</strong> printed on their PDF receipt. Enter it below to confirm payment and release the document.
+          </p>
+          <form method="POST">
+            <label class="fl">Receipt Verification Code</label>
+            <input type="text" name="code" class="fc code-input" placeholder="XXXX-XXXX-XX" autocomplete="off" value="<?= htmlspecialchars($_POST['code'] ?? '') ?>" required>
+            <button type="submit" name="verify_code" class="btn btn-teal btn-block mt-3"><i class="bi bi-shield-check"></i> Verify &amp; Prepare Release</button>
+          </form>
 
-        <?php if ($verifyErr): ?>
-          <div class="verify-result verify-bad"><i class="bi bi-exclamation-triangle me-2"></i><?= htmlspecialchars($verifyErr) ?></div>
-        <?php elseif ($verify): ?>
-          <div class="verify-result verify-ok">
-            <div class="d-flex align-items-center gap-2 mb-2">
-              <i class="bi bi-check-circle-fill" style="font-size:1.3rem;"></i>
-              <strong>Payment verified — ready to release</strong>
+          <?php if ($verifyErr): ?>
+            <div class="verify-result verify-bad"><i class="bi bi-exclamation-triangle me-2"></i><?= htmlspecialchars($verifyErr) ?></div>
+          <?php elseif ($verify): ?>
+            <div class="verify-result verify-ok">
+              <div class="d-flex align-items-center gap-2 mb-2" style="color:var(--green);">
+                <i class="bi bi-check-circle-fill" style="font-size:1.3rem;"></i>
+                <strong>Payment verified — ready to release</strong>
+              </div>
+              <div class="verify-code-display"><?= htmlspecialchars(rtrim(chunk_split($verify['verification_code'], 4, '-'), '-')) ?></div>
+              <div class="kv"><span class="k">Document Owner</span><span class="v"><?= htmlspecialchars(trim(($verify['sur_name'] ?? '') . ' ' . ($verify['given_name'] ?? '')) ?: $verify['payer_name']) ?></span></div>
+              <div class="kv"><span class="k">Document Type</span><span class="v"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $verify['doc_type'] ?? 'Document'))) ?></span></div>
+              <div class="kv"><span class="k">ID / NIN</span><span class="v"><?= htmlspecialchars($verify['id_number'] ?? '—') ?></span></div>
+              <div class="kv"><span class="k">Amount Paid</span><span class="v">UGX <?= number_format((float)($verify['amount'] ?? 0)) ?></span></div>
+              <div class="kv"><span class="k">Payer Phone</span><span class="v"><?= htmlspecialchars($verify['payer_phone'] ?? '—') ?></span></div>
+
+              <form method="POST" class="mt-3">
+                <input type="hidden" name="alert_id" value="<?= (int)$verify['alert_id'] ?>">
+                <label class="fl">Collected By (full name of owner)</label>
+                <input type="text" name="collected_by" class="fc" placeholder="e.g. John Okello" required>
+                <button type="submit" name="confirm_collection" class="btn btn-success btn-block mt-2">
+                  <i class="bi bi-check2-all me-2"></i>Confirm Collection &amp; Hand Over Document
+                </button>
+              </form>
             </div>
-            <div class="verify-code-display"><?= htmlspecialchars(rtrim(chunk_split($verify['verification_code'], 4, '-'), '-')) ?></div>
-            <div class="kv"><span class="k">Document Owner</span><span class="v"><?= htmlspecialchars(trim(($verify['sur_name'] ?? '') . ' ' . ($verify['given_name'] ?? '')) ?: $verify['payer_name']) ?></span></div>
-            <div class="kv"><span class="k">Document Type</span><span class="v"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $verify['doc_type'] ?? 'Document'))) ?></span></div>
-            <div class="kv"><span class="k">ID / NIN</span><span class="v"><?= htmlspecialchars($verify['id_number'] ?? '—') ?></span></div>
-            <div class="kv"><span class="k">Amount Paid</span><span class="v">UGX <?= number_format((float)($verify['amount'] ?? 0)) ?></span></div>
-            <div class="kv"><span class="k">Payer Phone</span><span class="v"><?= htmlspecialchars($verify['payer_phone'] ?? '—') ?></span></div>
-
-            <form method="POST" class="mt-3">
-              <input type="hidden" name="alert_id" value="<?= (int)$verify['alert_id'] ?>">
-              <label class="fl">Collected By (full name of owner)</label>
-              <input type="text" name="collected_by" class="fc" placeholder="e.g. John Okello" required>
-              <button type="submit" name="confirm_collection" class="btn btn-success btn-block mt-2">
-                <i class="bi bi-check2-all me-2"></i>Confirm Collection &amp; Hand Over Document
-              </button>
-            </form>
-          </div>
-        <?php endif; ?>
+          <?php endif; ?>
+        </div>
+        <div class="verify-side">
+          <h6><i class="bi bi-info-circle"></i> How release works</h6>
+          <div class="verify-step"><div class="vs-n">1</div><span>Owner shows their printed or saved PDF receipt with the verification code.</span></div>
+          <div class="verify-step"><div class="vs-n">2</div><span>Enter the code here — the system confirms payment was approved by admin.</span></div>
+          <div class="verify-step"><div class="vs-n">3</div><span>Check the owner's government-issued ID matches the document details shown.</span></div>
+          <div class="verify-step"><div class="vs-n">4</div><span>Confirm collection to hand over the document and close the case.</span></div>
+        </div>
       </div>
     </div>
 

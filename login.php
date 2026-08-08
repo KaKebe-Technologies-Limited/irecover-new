@@ -16,18 +16,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name     = trim($_POST['name']     ?? '');
     $password = trim($_POST['password'] ?? '');
 
-    $stmt = $conn->prepare("SELECT user_name FROM admins WHERE user_name = ? AND password = ? AND role = 'station' AND is_active = 1");
+    $stmt = $conn->prepare("SELECT user_name, password FROM admins WHERE user_name = ? AND role = 'station' AND is_active = 1");
     if ($stmt) {
-        $stmt->bind_param('ss', $name, $password);
+        $stmt->bind_param('s', $name);
         $stmt->execute();
-        if ($stmt->get_result()->num_rows > 0) {
-            $_SESSION['station_user'] = $name;
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        $ok = $row && password_verify($password, $row['password']);
+
+        // Transparently upgrade any legacy plaintext password on successful match
+        if (!$ok && $row && hash_equals($row['password'], $password)) {
+            $ok = true;
+            $upd = $conn->prepare("UPDATE admins SET password = ? WHERE user_name = ?");
+            $newHash = password_hash($password, PASSWORD_DEFAULT);
+            $upd->bind_param('ss', $newHash, $row['user_name']);
+            $upd->execute();
+            $upd->close();
+        }
+
+        if ($ok) {
+            $_SESSION['station_user'] = $row['user_name'];
             header('Location: station/');
             exit();
         } else {
             $error = 'Invalid username or password.';
         }
-        $stmt->close();
     } else {
         $error = 'System error. Please try again.';
     }

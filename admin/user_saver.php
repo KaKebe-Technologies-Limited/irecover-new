@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $user_name      = trim($_POST['user_name']      ?? '');
-$password       = trim($_POST['password']       ?? '');
+$password       = password_hash(trim($_POST['password'] ?? ''), PASSWORD_DEFAULT);
 $number         = trim($_POST['number']         ?? '');
 $district       = trim($_POST['district']       ?? '');
 $address        = trim($_POST['address']        ?? '');

@@ -22,18 +22,21 @@ ALTER TABLE `admins`
 -- ── 2. SEED USERS ─────────────────────────────────────────────
 
 -- Super Admin (full system access)
+-- Passwords are bcrypt hashes (password_hash / PASSWORD_DEFAULT) verified via password_verify()
+-- in login.php / adminlogin.php. Never seed plaintext passwords here — set real credentials
+-- out of band and rotate before going live.
 INSERT INTO `admins` (`user_name`, `password`, `number`, `contact_phone`, `email`, `district`, `address`, `type_of_entity`, `role`, `is_active`, `registered_at`)
 VALUES
-('superadmin',  'SuperAdmin@2025',  777000001, '0777000001', 'superadmin@irecover.ug',  'Kampala', 'Head Office', 'iRecovery',   'super_admin', 1, NOW()),
-('admin',       'Admin@2025',       777000002, '0777000002', 'admin@irecover.ug',       'Kampala', 'Head Office', 'iRecovery',   'admin',       1, NOW());
+('superadmin',  '$2y$10$mKp9I21r9qQMpmI4st0pBu0Wz.m9SoKKLc0z29GebfT3LUw60LeWC',  777000001, '0777000001', 'superadmin@irecover.ug',  'Kampala', 'Head Office', 'iRecovery',   'super_admin', 1, NOW()),
+('admin',       '$2y$10$PqvecA0RqCJWi6H32naC5Og4Y5GidS4BpWKMyp8ic9Bp3FYWVYHLC',  777000002, '0777000002', 'admin@irecover.ug',       'Kampala', 'Head Office', 'iRecovery',   'admin',       1, NOW());
 
 -- Station Admins (radio stations, police posts, etc.)
 INSERT INTO `admins` (`user_name`, `password`, `number`, `contact_phone`, `email`, `district`, `address`, `type_of_entity`, `role`, `is_active`, `registered_at`)
 VALUES
-('Voice of Lango FM', '123', 777676206, '0777676206', 'vol@irecover.info',     'Lira City', 'Lira City',    'Radio Station', 'station', 1, NOW()),
-('Qfm',               '123', 777676206, '0777676206', 'qfm@irecover.info',     'Lira City', 'Lira City',    'Radio Station', 'station', 1, NOW()),
-('Voice of The Gospel','123', 777676206, '0777676206', 'vog@irecover.info',     'Lira City', 'Lira City',    'Radio Station', 'station', 1, NOW()),
-('Lira Central Police','Lira@2025', 772100100, '0772100100', 'police.lira@irecover.ug', 'Lira City', 'Lira Central Police Station', 'Police', 'station', 1, NOW());
+('Voice of Lango FM', '$2y$10$Y9JcvCh9qDNhYL4UFtIfgOUMHuYbiW3LTzfd2UYdU1h.TXOspSMlW', 777676206, '0777676206', 'vol@irecover.info',     'Lira City', 'Lira City',    'Radio Station', 'station', 1, NOW()),
+('Qfm',               '$2y$10$Y9JcvCh9qDNhYL4UFtIfgOUMHuYbiW3LTzfd2UYdU1h.TXOspSMlW', 777676206, '0777676206', 'qfm@irecover.info',     'Lira City', 'Lira City',    'Radio Station', 'station', 1, NOW()),
+('Voice of The Gospel','$2y$10$Y9JcvCh9qDNhYL4UFtIfgOUMHuYbiW3LTzfd2UYdU1h.TXOspSMlW', 777676206, '0777676206', 'vog@irecover.info',     'Lira City', 'Lira City',    'Radio Station', 'station', 1, NOW()),
+('Lira Central Police','$2y$10$QCEuUaUMBAfxkzoTOgabgOpi8J2fr7lKfFm.1BOkkbGnSVwex8Cyu', 772100100, '0772100100', 'police.lira@irecover.ug', 'Lira City', 'Lira Central Police Station', 'Police', 'station', 1, NOW());
 
 -- ── 3. UNIFIED DOCUMENTS TABLE ────────────────────────────────
 -- Replaces the fragmented national_ids / driving_permits / student_ids
