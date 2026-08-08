@@ -36,9 +36,11 @@ $doc_type      = $pay['lr_doc_type'] ?? '';
 $doc_label     = strtoupper(str_replace('_', ' ', $doc_type));
 $owner_name    = htmlspecialchars(trim(($pay['sur_name'] ?? '') . ' ' . ($pay['given_name'] ?? ''))) ?: $payer;
 $vcode_raw     = $pay['verification_code'] ?? '';
-// Format code as XXXX-XXXX-XX for readability
+// Format code as XXX-XXX (6-char codes) for readability; fall back to raw for legacy 10-char codes
 $vcode_fmt = '';
-if (strlen($vcode_raw) === 10) {
+if (strlen($vcode_raw) === 6) {
+    $vcode_fmt = substr($vcode_raw,0,3) . '-' . substr($vcode_raw,3,3);
+} elseif (strlen($vcode_raw) === 10) {
     $vcode_fmt = substr($vcode_raw,0,4) . '-' . substr($vcode_raw,4,4) . '-' . substr($vcode_raw,8,2);
 } else {
     $vcode_fmt = $vcode_raw;

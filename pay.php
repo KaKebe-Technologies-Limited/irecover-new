@@ -1,101 +1,89 @@
 <?php
 // ─────────────────────────────────────────────
-// Pay to Recover — UGX 30,000 fixed fee
-// Creates payment record, redirects to receipt
+// Pay to Recover — real IOTec Pay Mobile Money collection.
+// Payable only once BOTH admin and station have approved the match.
+// No PIN is ever collected here — IOTec prompts the payer on their
+// own phone; we only ever see phone number + name.
 // ─────────────────────────────────────────────
 include_once 'db.php';
 include_once 'includes/match_engine.php';
+include_once 'includes/iotec_pay.php';
 
-$doc_type   = trim($_GET['doc_type']  ?? $_POST['doc_type']  ?? '');
-$id_number  = trim(strtoupper($_GET['id_number'] ?? $_POST['id_number'] ?? ''));
-$station    = trim($_GET['station']   ?? $_POST['station']   ?? '');
-$owner_name = trim($_GET['name']      ?? $_POST['name']      ?? '');
-$fee        = 30000; // Fixed recovery fee UGX 30,000
+$id_number = trim(strtoupper($_GET['id_number'] ?? $_POST['id_number'] ?? ''));
+$match     = null;   // approved match_alerts + lost_reports row
+$fee       = 0.0;
+$error     = '';
+$initiated = null;   // ['payment_id' => .., 'transaction_id' => ..] once a collection has been started
 
-$status     = null;
-$error      = '';
-$payment_id = null;
+function findApprovedMatch(mysqli $conn, string $idNumber): ?array {
+    if ($idNumber === '') return null;
+    $stmt = $conn->prepare(
+        "SELECT ma.id AS alert_id, ma.station, ma.document_id,
+                lr.doc_type, lr.sur_name, lr.given_name, lr.id_number
+         FROM match_alerts ma
+         JOIN lost_reports lr ON lr.id = ma.lost_report_id
+         WHERE lr.id_number = ?
+           AND ma.admin_approved = 1 AND ma.station_approved = 1
+           AND ma.alert_status NOT IN ('paid','collected','closed')
+         ORDER BY ma.created_at DESC LIMIT 1"
+    );
+    $stmt->bind_param('s', $idNumber);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($id_number !== '') {
+    $match = findApprovedMatch($conn, $id_number);
+    if ($match) {
+        $feeInfo = getFeeConfig($conn, $match['doc_type']);
+        $fee = $feeInfo['fee_ugx'];
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['payer_name'])) {
     $payer_name  = trim($_POST['payer_name']  ?? '');
-    $payer_phone = trim($_POST['payer_phone'] ?? '');
-    $mm_pin      = trim($_POST['mm_pin']      ?? ''); // client-side only — never stored
-    $id_number   = trim(strtoupper($_POST['id_number'] ?? ''));
-    $doc_type    = trim($_POST['doc_type']    ?? '');
-    $station     = trim($_POST['station']     ?? '');
-    $owner_name  = trim($_POST['owner_name']  ?? '');
+    $payer_phone = preg_replace('/[^0-9]/', '', trim($_POST['payer_phone'] ?? ''));
 
-    if (empty($payer_name) || empty($payer_phone) || strlen($payer_phone) < 10) {
-        $error = 'Please enter your full name and a valid phone number.';
+    if (!$match) {
+        $error = 'This document is not yet approved for payment. Please check status again.';
+    } elseif (empty($payer_name) || strlen($payer_phone) < 9 || strlen($payer_phone) > 13) {
+        $error = 'Please enter your full name and a valid Mobile Money phone number.';
     } else {
-        // Find matching alert (best-effort — may be null for legacy docs)
-        $alert_id = null;
-        $doc_id   = null;
-        $as = $conn->prepare(
-            "SELECT ma.id, ma.document_id FROM match_alerts ma
-             LEFT JOIN documents d ON d.id = ma.document_id
-             WHERE ma.alert_status NOT IN ('collected','closed')
-               AND (d.id_number = ?
-                    OR ma.document_id IN (
-                        SELECT national_id FROM national_ids WHERE nin_number=?
-                        UNION SELECT driver_id FROM driving_permits WHERE permit_number=?
-                        UNION SELECT student_id FROM student_ids WHERE student_number=?
-                    ))
-             ORDER BY ma.created_at DESC LIMIT 1"
-        );
-        $as->bind_param('ssss', $id_number, $id_number, $id_number, $id_number);
-        $as->execute();
-        $ar = $as->get_result()->fetch_assoc();
-        $as->close();
-        if ($ar) { $alert_id = $ar['id']; $doc_id = $ar['document_id']; }
-
-        // Insert payment record
         $ps = $conn->prepare(
             "INSERT INTO payments
              (match_alert_id, document_id, payer_name, payer_phone, id_number, amount, payment_method, provider, status, initiated_at)
-             VALUES (?,?,?,?,?,30000,'mobile_money','MTN','initiated',NOW())"
+             VALUES (?,?,?,?,?,?,'mobile_money','other','initiated',NOW())"
         );
-        $ps->bind_param('iisss', $alert_id, $doc_id, $payer_name, $payer_phone, $id_number);
-        if ($ps->execute()) {
-            $payment_id = $conn->insert_id;
-
-            // Generate unique verification code (used by station to verify payment)
-            $vcode = generateVerificationCode($conn);
-            $vc_stmt = $conn->prepare("UPDATE payments SET verification_code=? WHERE id=?");
-            $vc_stmt->bind_param('si', $vcode, $payment_id);
-            $vc_stmt->execute();
-            $vc_stmt->close();
-
-            $status = 'success';
-
-            // Update match alert status if linked
-            if ($alert_id) {
-                $us = $conn->prepare("UPDATE match_alerts SET alert_status='owner_notified' WHERE id=?");
-                $us->bind_param('i', $alert_id);
-                $us->execute();
-                $us->close();
-            }
-
-            // Notify admins
-            createNotification($conn, 'payment_confirmed', 'admin', null,
-                "Payment INITIATED — $payer_name ($payer_phone) for " . strtoupper(str_replace('_',' ',$doc_type)) . " | ID: $id_number | UGX 30,000",
-                $payment_id
-            );
-            // Also notify the holding station
-            if ($station) {
-                createNotification($conn, 'payment_confirmed', 'station', $station,
-                    "Payment initiated by $payer_name ($payer_phone) for document $id_number. Prepare for collection.",
-                    $payment_id
-                );
-            }
-
-            // Redirect to receipt
-            header("Location: receipt.php?pid=$payment_id");
-            exit();
-        } else {
-            $error = 'Could not record your payment. Please try again.';
-        }
+        $ps->bind_param('iisssd', $match['alert_id'], $match['document_id'], $payer_name, $payer_phone, $id_number, $fee);
+        $ps->execute();
+        $payment_id = $conn->insert_id;
         $ps->close();
+
+        try {
+            $note = 'iRecovery document recovery fee - ' . ucwords(str_replace('_', ' ', $match['doc_type'])) . ' ' . $id_number;
+            $resp = iotecInitiateCollection($fee, $payer_phone, $payer_name, (string)$payment_id, $note);
+
+            $upd = $conn->prepare("UPDATE payments SET iotec_transaction_id=?, iotec_status=? WHERE id=?");
+            $txnId = $resp['id'];
+            $txnStatus = $resp['status'] ?? 'Pending';
+            $upd->bind_param('ssi', $txnId, $txnStatus, $payment_id);
+            $upd->execute();
+            $upd->close();
+
+            createNotification($conn, 'payment_confirmed', 'admin', null,
+                "Payment INITIATED — $payer_name ($payer_phone) for " . strtoupper(str_replace('_', ' ', $match['doc_type'])) . " | ID: $id_number | UGX " . number_format($fee), $payment_id);
+            if (!empty($match['station'])) {
+                createNotification($conn, 'payment_confirmed', 'station', $match['station'],
+                    "Payment initiated by $payer_name for document $id_number. Awaiting confirmation.", $payment_id);
+            }
+
+            $initiated = ['payment_id' => $payment_id, 'transaction_id' => $txnId];
+        } catch (IotecPayException $e) {
+            $conn->query("UPDATE payments SET status='failed', iotec_status='InitError' WHERE id=" . (int)$payment_id);
+            $error = 'We could not start the Mobile Money payment. Please try again in a moment. (' . htmlspecialchars($e->getMessage()) . ')';
+        }
     }
 }
 ?>
@@ -116,7 +104,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         body::before { content:''; position:fixed; inset:0; background:rgba(0,0,0,0.68); z-index:0; }
         .wrap { position:relative; z-index:1; flex:1; display:flex; align-items:center; justify-content:center; padding:2rem 1rem; }
 
-        /* Card */
         .pay-card {
             background:#fff; border-radius:1.25rem; padding:2.5rem 2rem;
             max-width:500px; width:100%;
@@ -125,7 +112,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
 
-        /* Header */
         .pay-header { text-align:center; margin-bottom:1.75rem; }
         .pay-icon {
             width:64px; height:64px; border-radius:50%;
@@ -137,7 +123,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .pay-header h1 { font-size:1.5rem; font-weight:700; color:#1a1a1a; margin-bottom:.3rem; }
         .pay-header p  { color:#666; font-size:.88rem; margin:0; }
 
-        /* Fee box */
         .fee-box {
             background:linear-gradient(135deg,#fff8e1,#fff3cd);
             border:2px solid #ffe082;
@@ -148,11 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .fee-num  { font-size:2rem; font-weight:700; color:var(--orange); line-height:1; }
         .fee-note { font-size:.8rem; color:#888; margin-top:.2rem; }
 
-        /* MM steps */
-        .mm-steps {
-            background:#f8f9fa; border-radius:.75rem;
-            padding:1rem 1.25rem; margin-bottom:1.5rem;
-        }
+        .mm-steps { background:#f8f9fa; border-radius:.75rem; padding:1rem 1.25rem; margin-bottom:1.5rem; }
         .mm-steps h6 { font-size:.85rem; font-weight:700; color:#333; margin-bottom:.75rem; }
         .mm-step { display:flex; align-items:flex-start; gap:.6rem; font-size:.83rem; color:#555; margin-bottom:.45rem; }
         .mm-step:last-child { margin:0; }
@@ -163,7 +144,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-size:.7rem; font-weight:700; flex-shrink:0;
         }
 
-        /* Form */
         .form-label { font-weight:600; font-size:.88rem; color:#333; }
         .form-control, .form-select {
             border-radius:.6rem; padding:.7rem 1rem;
@@ -175,12 +155,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             box-shadow:0 0 0 3px rgba(255,111,0,0.15);
         }
 
-        /* PIN field styling */
-        .pin-wrap { position:relative; }
-        .pin-wrap .bi { position:absolute; right:.9rem; top:50%; transform:translateY(-50%); color:#aaa; cursor:pointer; }
-        .pin-wrap input { padding-right:2.5rem; letter-spacing:.2rem; font-weight:600; }
-
-        /* Submit */
         .btn-pay-now {
             display:flex; align-items:center; justify-content:center; gap:.5rem;
             width:100%; padding:.85rem 1.5rem;
@@ -192,8 +166,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .btn-pay-now:hover { background:var(--orange-dark); transform:translateY(-2px); box-shadow:0 6px 22px rgba(255,111,0,0.5); }
         .btn-pay-now:disabled { opacity:.6; cursor:not-allowed; transform:none; }
 
-        /* Security note */
         .security-note { text-align:center; font-size:.78rem; color:#aaa; margin-top:.75rem; }
+
+        .not-approved { text-align:center; padding:1rem 0; }
+        .not-approved i { font-size:3rem; color:#ddd; display:block; margin-bottom:1rem; }
+
+        /* Waiting-for-phone-approval screen */
+        .waiting { text-align:center; padding:1rem 0; }
+        .waiting .spin-icon { font-size:3rem; color:var(--orange); animation:spin 1.4s linear infinite; display:block; margin-bottom:1rem; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .waiting h2 { font-size:1.25rem; font-weight:700; margin-bottom:.5rem; }
+        .waiting p { color:#666; font-size:.9rem; }
+        #waitStatus { margin-top:1rem; font-size:.85rem; color:#888; }
 
         footer { position:relative; z-index:1; text-align:center; padding:.8rem; color:#ccc; font-size:.82rem; }
         footer a { color:#aaa; text-decoration:none; }
@@ -203,81 +187,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="wrap">
 <div class="pay-card">
 
-    <div class="pay-header">
-        <div class="pay-icon"><i class="bi bi-phone"></i></div>
-        <h1>Pay to Recover Your Document</h1>
-        <p>Complete Mobile Money payment to get your PDF receipt and collect your document.</p>
-    </div>
-
-    <?php if ($error): ?>
-        <div class="alert alert-danger py-2 mb-3" style="font-size:.88rem;"><?= htmlspecialchars($error) ?></div>
-    <?php endif; ?>
-
-    <!-- Fee display -->
-    <div class="fee-box">
-        <div>
-            <div class="fee-num">UGX 30,000</div>
-            <div class="fee-note">One-time document recovery fee</div>
-        </div>
-        <div style="margin-left:auto;font-size:.8rem;color:#888;">
-            <?= htmlspecialchars(ucwords(str_replace('_',' ',$doc_type))) ?><br>
-            <?php if ($owner_name): ?>
-                <strong style="color:#333;"><?= htmlspecialchars($owner_name) ?></strong>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <!-- How MM payment works -->
-    <div class="mm-steps">
-        <h6><i class="bi bi-info-circle me-1" style="color:var(--orange);"></i>How Mobile Money Payment Works</h6>
-        <div class="mm-step"><div class="ms-n">1</div><span>Enter your name and Mobile Money number below.</span></div>
-        <div class="mm-step"><div class="ms-n">2</div><span>Enter your 4-digit Mobile Money PIN to authorise.</span></div>
-        <div class="mm-step"><div class="ms-n">3</div><span>UGX 30,000 is deducted and your <strong>PDF receipt</strong> is generated instantly.</span></div>
-        <div class="mm-step"><div class="ms-n">4</div><span>Take the receipt to <strong><?= htmlspecialchars($station ?: 'the station') ?></strong> to collect your document.</span></div>
-    </div>
-
-    <!-- Payment form -->
-    <form method="POST" id="payForm">
-        <input type="hidden" name="doc_type"    value="<?= htmlspecialchars($doc_type) ?>">
-        <input type="hidden" name="id_number"   value="<?= htmlspecialchars($id_number) ?>">
-        <input type="hidden" name="station"     value="<?= htmlspecialchars($station) ?>">
-        <input type="hidden" name="owner_name"  value="<?= htmlspecialchars($owner_name) ?>">
-
-        <div class="mb-3">
-            <label class="form-label">Your Full Name</label>
-            <input type="text" name="payer_name" class="form-control"
-                   placeholder="Name as on your ID" required
-                   value="<?= htmlspecialchars($owner_name) ?>">
+    <?php if ($initiated): ?>
+        <!-- ═══ Waiting for the payer to approve the prompt on their phone ═══ -->
+        <div class="waiting" id="waitPanel" data-pid="<?= (int)$initiated['payment_id'] ?>">
+            <i class="bi bi-arrow-repeat spin-icon"></i>
+            <h2>Check Your Phone</h2>
+            <p>We've sent a Mobile Money payment prompt to your phone for <strong>UGX <?= number_format($fee) ?></strong>. Enter your PIN there to approve it.</p>
+            <div id="waitStatus">Waiting for approval…</div>
         </div>
 
-        <div class="mb-3">
-            <label class="form-label">Mobile Money Phone Number</label>
-            <input type="tel" name="payer_phone" class="form-control"
-                   placeholder="e.g. 0771234567" required maxlength="13">
-            <small class="text-muted">MTN or Airtel number registered to your name</small>
+    <?php elseif (!$match): ?>
+        <!-- ═══ Lookup form ═══ -->
+        <div class="pay-header">
+            <div class="pay-icon"><i class="bi bi-phone"></i></div>
+            <h1>Pay to Recover Your Document</h1>
+            <p>Enter your document ID / NIN number to proceed.</p>
         </div>
-
-        <div class="mb-4">
-            <label class="form-label">Mobile Money PIN <span style="color:#999;font-weight:400;">(4 digits)</span></label>
-            <div class="pin-wrap">
-                <input type="password" name="mm_pin" id="mmPin" class="form-control"
-                       placeholder="&#9679;&#9679;&#9679;&#9679;"
-                       maxlength="4" pattern="\d{4}" inputmode="numeric" required>
-                <i class="bi bi-eye-slash" id="togglePin"></i>
+        <?php if ($id_number): ?>
+            <div class="not-approved">
+                <i class="bi bi-hourglass-split"></i>
+                <p>No approved match found for <strong><?= htmlspecialchars($id_number) ?></strong> yet.<br>
+                Your match must be approved by both our admin team and the holding station before you can pay.</p>
+                <a href="track.php?id_number=<?= urlencode($id_number) ?>" class="btn btn-outline-secondary btn-sm mt-2">Check Status</a>
             </div>
-            <small class="text-muted">Your PIN is used only to process this payment and is never stored.</small>
+        <?php endif; ?>
+        <form method="GET">
+            <label class="form-label">Document ID / NIN Number</label>
+            <input type="text" name="id_number" class="form-control mb-3" placeholder="e.g. CM90103100DLAH" required value="<?= htmlspecialchars($id_number) ?>">
+            <button type="submit" class="btn-pay-now"><i class="bi bi-search"></i> Check</button>
+        </form>
+
+    <?php else: ?>
+        <!-- ═══ Payer details form ═══ -->
+        <div class="pay-header">
+            <div class="pay-icon"><i class="bi bi-phone"></i></div>
+            <h1>Pay to Recover Your Document</h1>
+            <p>Complete Mobile Money payment to unlock your PDF receipt and collect your document.</p>
         </div>
 
-        <button type="submit" class="btn-pay-now" id="payBtn">
-            <i class="bi bi-lock-fill"></i>
-            Confirm Payment — UGX 30,000
-        </button>
-    </form>
+        <?php if ($error): ?>
+            <div class="alert alert-danger py-2 mb-3" style="font-size:.88rem;"><?= htmlspecialchars($error) ?></div>
+        <?php endif; ?>
 
-    <div class="security-note">
-        <i class="bi bi-shield-check me-1"></i>
-        Secured by iRecovery &mdash; your payment details are encrypted and never stored.
-    </div>
+        <div class="fee-box">
+            <div>
+                <div class="fee-num">UGX <?= number_format($fee) ?></div>
+                <div class="fee-note">One-time document recovery fee</div>
+            </div>
+            <div style="margin-left:auto;font-size:.8rem;color:#888;text-align:right;">
+                <?= htmlspecialchars(ucwords(str_replace('_', ' ', $match['doc_type']))) ?><br>
+                <strong style="color:#333;"><?= htmlspecialchars(trim($match['sur_name'] . ' ' . $match['given_name'])) ?></strong>
+            </div>
+        </div>
+
+        <div class="mm-steps">
+            <h6><i class="bi bi-info-circle me-1" style="color:var(--orange);"></i>How Mobile Money Payment Works</h6>
+            <div class="mm-step"><div class="ms-n">1</div><span>Enter your name and Mobile Money number below.</span></div>
+            <div class="mm-step"><div class="ms-n">2</div><span>You'll get a real payment prompt <strong>on your own phone</strong> — enter your PIN there, never on this site.</span></div>
+            <div class="mm-step"><div class="ms-n">3</div><span>Once approved, your <strong>PDF receipt</strong> and pickup code are ready instantly.</span></div>
+            <div class="mm-step"><div class="ms-n">4</div><span>Take the receipt to the holding station to collect your document.</span></div>
+        </div>
+
+        <form method="POST" id="payForm">
+            <input type="hidden" name="id_number" value="<?= htmlspecialchars($id_number) ?>">
+
+            <div class="mb-3">
+                <label class="form-label">Your Full Name</label>
+                <input type="text" name="payer_name" class="form-control" placeholder="Name as on your ID" required>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label">Mobile Money Phone Number</label>
+                <input type="tel" name="payer_phone" class="form-control" placeholder="e.g. 0771234567" required maxlength="13">
+                <small class="text-muted">MTN or Airtel number registered to your name</small>
+            </div>
+
+            <button type="submit" class="btn-pay-now" id="payBtn">
+                <i class="bi bi-phone"></i> Send Payment Prompt — UGX <?= number_format($fee) ?>
+            </button>
+        </form>
+
+        <div class="security-note">
+            <i class="bi bi-shield-check me-1"></i>
+            We never see or store your Mobile Money PIN — it's entered only on your own phone.
+        </div>
+    <?php endif; ?>
 
 </div>
 </div>
@@ -286,25 +280,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </footer>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    // Toggle PIN visibility
-    const pinInput  = document.getElementById('mmPin');
-    const togglePin = document.getElementById('togglePin');
-    togglePin.addEventListener('click', () => {
-        if (pinInput.type === 'password') {
-            pinInput.type = 'text';
-            togglePin.className = 'bi bi-eye';
-        } else {
-            pinInput.type = 'password';
-            togglePin.className = 'bi bi-eye-slash';
-        }
-    });
+    const payForm = document.getElementById('payForm');
+    if (payForm) {
+        payForm.addEventListener('submit', function() {
+            const btn = document.getElementById('payBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending prompt...';
+        });
+    }
 
-    // Prevent double-submit
-    document.getElementById('payForm').addEventListener('submit', function() {
-        const btn = document.getElementById('payBtn');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
-    });
+    const waitPanel = document.getElementById('waitPanel');
+    if (waitPanel) {
+        const pid = waitPanel.dataset.pid;
+        const statusEl = document.getElementById('waitStatus');
+        let tries = 0;
+        const poll = setInterval(async () => {
+            tries++;
+            try {
+                const res = await fetch('payment_status.php?pid=' + pid);
+                const data = await res.json();
+                statusEl.textContent = data.message || 'Waiting for approval…';
+                if (data.status === 'confirmed') {
+                    clearInterval(poll);
+                    statusEl.innerHTML = '<span style="color:#15803d;font-weight:600;">Payment confirmed! Redirecting…</span>';
+                    setTimeout(() => { window.location.href = 'receipt.php?pid=' + pid; }, 1200);
+                } else if (data.status === 'failed') {
+                    clearInterval(poll);
+                    statusEl.innerHTML = '<span style="color:#b91c1c;font-weight:600;">' + (data.message || 'Payment failed.') + '</span> <a href="pay.php?id_number=<?= urlencode($id_number) ?>">Try again</a>';
+                }
+            } catch (e) { /* keep polling */ }
+            if (tries > 60) clearInterval(poll); // stop after ~5 minutes
+        }, 5000);
+    }
 </script>
 </body>
 </html>

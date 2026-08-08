@@ -1,0 +1,9 @@
+# Local/server-specific DB overrides — never commit real credentials
+db.local.php
+
+# IOTec Pay live credentials — never commit real credentials
+payments.local.php
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db

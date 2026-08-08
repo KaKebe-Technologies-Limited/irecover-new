@@ -27,22 +27,55 @@ if (isset($_SESSION['station_user'])) {
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/1570/1570887.png">
 
     <!-- Primary Meta Tags -->
-    <title>iRecovery — Document Recovery Platform</title>
-    <meta name="description" content="iRecovery helps you report, upload, and search for lost or found documents with a modern, intuitive interface.">
+    <title>iRecovery Uganda — Recover Your Lost National ID, Passport &amp; Documents Fast</title>
+    <meta name="description" content="Lost your National ID, passport, driving permit, student ID or other document in Uganda? iRecovery reunites you with found documents fast — report, search, and securely pay to recover your document from partner stations nationwide.">
+    <meta name="keywords" content="lost national ID Uganda, recover national ID Uganda, find lost NIN, lost passport Uganda, lost driving permit Uganda, NIRA ID recovery, found documents Uganda, document recovery platform, iRecovery Uganda">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="Kakebe Technologies Limited">
+    <link rel="canonical" href="https://irecover.site/">
 
     <!-- Open Graph -->
     <meta property="og:type"        content="website">
-    <meta property="og:url"         content="https://id.faithfellows.online/">
-    <meta property="og:title"       content="iRecovery — Modern Document Recovery Platform">
-    <meta property="og:description" content="iRecovery helps you report, upload, and search for lost or found documents with a modern, intuitive interface.">
-    <meta property="og:image"       content="https://id.faithfellows.online/img/bg.jpg">
+    <meta property="og:locale"      content="en_UG">
+    <meta property="og:site_name"   content="iRecovery Uganda">
+    <meta property="og:url"         content="https://irecover.site/">
+    <meta property="og:title"       content="iRecovery Uganda — Recover Your Lost National ID, Passport &amp; Documents Fast">
+    <meta property="og:description" content="Lost your National ID, passport, driving permit, student ID or other document in Uganda? Search our database of found documents and recover yours securely, fast.">
+    <meta property="og:image"       content="https://irecover.site/img/bg.jpg">
 
     <!-- Twitter Card -->
     <meta property="twitter:card"        content="summary_large_image">
-    <meta property="twitter:url"         content="https://id.faithfellows.online/">
-    <meta property="twitter:title"       content="iRecovery — Modern Document Recovery Platform">
-    <meta property="twitter:description" content="iRecovery helps you report, upload, and search for lost or found documents with a modern, intuitive interface.">
-    <meta property="twitter:image"       content="https://id.faithfellows.online/img/bg.jpg">
+    <meta property="twitter:url"         content="https://irecover.site/">
+    <meta property="twitter:title"       content="iRecovery Uganda — Recover Your Lost National ID, Passport &amp; Documents Fast">
+    <meta property="twitter:description" content="Uganda's platform for reporting, finding, and securely recovering lost National IDs, passports, permits and more.">
+    <meta property="twitter:image"       content="https://irecover.site/img/bg.jpg">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "iRecovery Uganda",
+      "url": "https://irecover.site/",
+      "logo": "https://cdn-icons-png.flaticon.com/512/1570/1570887.png",
+      "description": "iRecovery helps people across Uganda report, search for, and recover lost documents such as National IDs, passports, driving permits and student IDs through partner stations nationwide.",
+      "areaServed": { "@type": "Country", "name": "Uganda" },
+      "sameAs": ["https://kakebe.tech/"]
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "iRecovery Uganda",
+      "url": "https://irecover.site/",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://irecover.site/search_id.php?id_number={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
 
     <!-- Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -50,9 +83,9 @@ if (isset($_SESSION['station_user'])) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
 
     <!-- iRecovery CSS -->
-    <link rel="stylesheet" href="assets/css/variables.css">
-    <link rel="stylesheet" href="assets/css/base.css">
-    <link rel="stylesheet" href="assets/css/home.css">
+    <link rel="stylesheet" href="assets/css/variables.css?v=<?= @filemtime(__DIR__.'/assets/css/variables.css') ?>">
+    <link rel="stylesheet" href="assets/css/base.css?v=<?= @filemtime(__DIR__.'/assets/css/base.css') ?>">
+    <link rel="stylesheet" href="assets/css/home.css?v=<?= @filemtime(__DIR__.'/assets/css/home.css') ?>">
 </head>
 <body>
 
@@ -222,15 +255,18 @@ if (isset($_SESSION['station_user'])) {
             <div class="svc-tabs" role="tablist">
                 <button class="svc-tab active" onclick="switchSvc(this,'svcFound')" role="tab" aria-selected="true">
                     <i class="bi bi-cloud-upload"></i>
-                    <span>Upload Found Document</span>
+                    <span class="svc-tab-full">Upload Found Document</span>
+                    <span class="svc-tab-short">Upload</span>
                 </button>
                 <button class="svc-tab" onclick="switchSvc(this,'svcLost')" role="tab" aria-selected="false">
                     <i class="bi bi-flag"></i>
-                    <span>Report Lost Document</span>
+                    <span class="svc-tab-full">Report Lost Document</span>
+                    <span class="svc-tab-short">Report</span>
                 </button>
                 <button class="svc-tab" onclick="switchSvc(this,'svcSearch')" role="tab" aria-selected="false">
                     <i class="bi bi-search"></i>
-                    <span>Search for Document</span>
+                    <span class="svc-tab-full">Search for Document</span>
+                    <span class="svc-tab-short">Search</span>
                 </button>
             </div>
 

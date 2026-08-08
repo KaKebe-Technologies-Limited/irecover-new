@@ -330,6 +330,7 @@
 }
 
 .svc-tab i { font-size: 1.15rem; }
+.svc-tab-short { display: none; }
 
 /* Inactive hover */
 .svc-tab:hover { color: #fff; filter: brightness(1.12); }
@@ -538,9 +539,10 @@
 
 /*  Responsive  */
 @media (max-width: 640px) {
-  .svc-tab span  { display: none; }      /* icon-only tabs on small screens */
-  .svc-tab i     { font-size: 1.4rem; }
-  .svc-tab       { padding: 1rem; }
+  .svc-tab-full  { display: none; }      /* long label hidden on small screens */
+  .svc-tab-short { display: inline; font-size: .8rem; }  /* short label + icon shown instead */
+  .svc-tab i     { font-size: 1.2rem; }
+  .svc-tab       { padding: .85rem .5rem; flex-direction: column; gap: .3rem; }
   .svc-tab.active::after { display: none; }
 
   .svc-fields-grid { grid-template-columns: 1fr; }

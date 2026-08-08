@@ -14,6 +14,11 @@ $isSuperAdmin = ($role === 'super_admin');
 
 // ── POST handlers ─────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Admin approval of a match (step 1 of 2 before payment can be taken)
+    if (isset($_POST['approve_match_admin'])) {
+        $aid = (int)($_POST['alert_id'] ?? 0);
+        if ($aid > 0) approveMatchByAdmin($conn, $aid, $userId);
+    }
     // Confirm payment AND unlock the owner's PDF receipt in one step
     if (isset($_POST['confirm_payment'])) {
         $pid = (int)$_POST['payment_id'];
@@ -66,6 +71,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->query("UPDATE notifications SET is_read=1 WHERE target_role IN ('admin','all')");
         exit();
     }
+    // Fee + commission settings (super admin only)
+    if (isset($_POST['update_fees']) && $isSuperAdmin) {
+        $types = $_POST['doc_type'] ?? [];
+        $fees  = $_POST['fee_ugx'] ?? [];
+        $comms = $_POST['commission_percent'] ?? [];
+        foreach ($types as $i => $dt) {
+            $fee  = (float)($fees[$i] ?? 0);
+            $comm = max(0, min(100, (float)($comms[$i] ?? 0)));
+            $u = $conn->prepare("UPDATE fee_config SET fee_ugx=?, commission_percent=? WHERE doc_type=?");
+            $u->bind_param('dds', $fee, $comm, $dt);
+            $u->execute();
+            $u->close();
+        }
+    }
 }
 
 // ── Stats ─────────────────────────────────────
@@ -82,6 +101,13 @@ $confirmedPay   = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='co
 $collectedCount = $conn->query("SELECT COUNT(*) c FROM match_alerts WHERE alert_status IN ('collected','closed')")->fetch_assoc()['c'] ?? 0;
 $unread         = getUnreadCount($conn, 'admin');
 $pendingApproval = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='confirmed' AND download_allowed=0")->fetch_assoc()['c'] ?? 0;
+
+// ── Revenue ─────────────────────────────────────
+$rev = $conn->query("SELECT COALESCE(SUM(amount),0) total, COALESCE(SUM(station_commission),0) commission, COUNT(*) cnt FROM payments WHERE status='confirmed'")->fetch_assoc();
+$totalRevenue      = (float)$rev['total'];
+$totalCommission   = (float)$rev['commission'];
+$netRevenue        = $totalRevenue - $totalCommission;
+$confirmedPayCount = (int)$rev['cnt'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -93,32 +119,54 @@ $pendingApproval = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='c
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/css/variables.css">
-    <link rel="stylesheet" href="../assets/css/dashboard.css">
+    <link rel="stylesheet" href="../assets/css/variables.css?v=<?= @filemtime(__DIR__.'/../assets/css/variables.css') ?>">
+    <link rel="stylesheet" href="../assets/css/dashboard.css?v=<?= @filemtime(__DIR__.'/../assets/css/dashboard.css') ?>">
 </head>
 <body>
 
-  <!-- ── Header ──────────────────────────────── -->
-  <header class="dash-header">
-    <a href="../index.php" class="hd-brand">
-      <span class="hd-brand-ico"><i class="bi bi-shield-check"></i></span>
-      iRecovery Admin
-    </a>
-    <div class="hd-right">
-      <a href="?mark_read=1" class="hd-bell" title="Notifications" id="bellLink">
-        <i class="bi bi-bell-fill"></i>
-        <?php if ($unread > 0): ?><span class="nb-dot"><?= $unread ?></span><?php endif; ?>
+  <div class="dash-shell">
+    <!-- ── Sidebar ─────────────────────────────── -->
+    <aside class="sidebar" id="sidebar">
+      <a href="../index.php" class="sidebar-brand">
+        <span class="hd-brand-ico"><i class="bi bi-shield-check"></i></span>
+        iRecovery Admin
       </a>
-      <div class="user-pill">
-        <div class="u-av"><?= strtoupper(substr($userId, 0, 1)) ?></div>
-        <div>
-          <div class="u-nm"><?= htmlspecialchars($userId) ?></div>
-          <div class="u-role"><?= $isSuperAdmin ? 'Super Admin' : 'Admin' ?></div>
+      <nav class="sidebar-nav" id="tabBar">
+        <button class="sidebar-link active" onclick="switchTab(this,'tMatches')"><i class="bi bi-lightning-charge"></i> Matches<?php if ($matchCount > 0): ?><span class="nb"><?= $matchCount ?></span><?php endif; ?></button>
+        <button class="sidebar-link" id="tabPayments" onclick="switchTab(this,'tPayments')"><i class="bi bi-phone"></i> Payments<?php if ($pendingApproval > 0): ?><span class="nb nb-amber"><?= $pendingApproval ?></span><?php endif; ?></button>
+        <button class="sidebar-link" onclick="switchTab(this,'tSearches')"><i class="bi bi-search"></i> Searches</button>
+        <button class="sidebar-link" onclick="switchTab(this,'tStations')"><i class="bi bi-building"></i> Stations</button>
+        <button class="sidebar-link" onclick="switchTab(this,'tFound')"><i class="bi bi-cloud-upload"></i> Found</button>
+        <button class="sidebar-link" onclick="switchTab(this,'tReported')"><i class="bi bi-flag"></i> Reported</button>
+        <button class="sidebar-link" onclick="switchTab(this,'tRevenue')"><i class="bi bi-graph-up-arrow"></i> Revenue</button>
+        <?php if ($isSuperAdmin): ?><button class="sidebar-link" onclick="switchTab(this,'tFees')"><i class="bi bi-tags"></i> Fee Settings</button><?php endif; ?>
+        <?php if ($isSuperAdmin): ?><button class="sidebar-link" onclick="switchTab(this,'tNotifs')"><i class="bi bi-bell"></i> Notifications</button><?php endif; ?>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="sidebar-user">
+          <div class="u-av"><?= strtoupper(substr($userId, 0, 1)) ?></div>
+          <div>
+            <div class="u-nm"><?= htmlspecialchars($userId) ?></div>
+            <div class="u-role"><?= $isSuperAdmin ? 'Super Admin' : 'Admin' ?></div>
+          </div>
+        </div>
+        <a href="logout.php" class="btn-out" style="width:100%;justify-content:center;"><i class="bi bi-box-arrow-right"></i> Logout</a>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+    <div class="main-area">
+      <!-- ── Topbar ──────────────────────────────── -->
+      <div class="topbar">
+        <button class="hamburger" onclick="openSidebar()" aria-label="Menu"><i class="bi bi-list"></i></button>
+        <div class="search-box"><i class="bi bi-search"></i><input type="text" id="searchInput" placeholder="Search anything…" onkeyup="filterTable()"></div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:.75rem;">
+          <a href="?mark_read=1" class="hd-bell hd-bell-light" title="Notifications" id="bellLink">
+            <i class="bi bi-bell-fill"></i>
+            <?php if ($unread > 0): ?><span class="nb-dot"><?= $unread ?></span><?php endif; ?>
+          </a>
         </div>
       </div>
-      <a href="logout.php" class="btn-out"><i class="bi bi-box-arrow-right"></i> Logout</a>
-    </div>
-  </header>
 
   <div class="page">
 
@@ -191,29 +239,15 @@ $pendingApproval = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='c
       <?php endif; ?>
     </div>
 
-    <!-- ── Toolbar + Tabs ───────────────────── -->
-    <div class="toolbar">
-      <div class="search-box"><i class="bi bi-search"></i><input type="text" id="searchInput" placeholder="Search anything…" onkeyup="filterTable()"></div>
-    </div>
-    <div class="tabs" id="tabBar">
-      <button class="tab-btn active" onclick="switchTab(this,'tMatches')"><i class="bi bi-lightning-charge"></i> Matches<?php if ($matchCount > 0): ?><span class="nb"><?= $matchCount ?></span><?php endif; ?></button>
-      <button class="tab-btn" id="tabPayments" onclick="switchTab(this,'tPayments')"><i class="bi bi-phone"></i> Payments<?php if ($pendingApproval > 0): ?><span class="nb nb-amber"><?= $pendingApproval ?></span><?php endif; ?></button>
-      <button class="tab-btn" onclick="switchTab(this,'tSearches')"><i class="bi bi-search"></i> Searches</button>
-      <button class="tab-btn" onclick="switchTab(this,'tStations')"><i class="bi bi-building"></i> Stations</button>
-      <button class="tab-btn" onclick="switchTab(this,'tFound')"><i class="bi bi-cloud-upload"></i> Found</button>
-      <button class="tab-btn" onclick="switchTab(this,'tReported')"><i class="bi bi-flag"></i> Reported</button>
-      <?php if ($isSuperAdmin): ?><button class="tab-btn" onclick="switchTab(this,'tNotifs')"><i class="bi bi-bell"></i> Notifications</button><?php endif; ?>
-    </div>
-
     <!-- ── Tables ────────────────────────────── -->
     <div id="tMatches" class="tcard">
       <div class="table-responsive">
         <table class="dt">
-          <thead><tr><th>#</th><th>Document</th><th>Owner</th><th>Station Holding</th><th>Reporter Contact</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+          <thead><tr><th>#</th><th>Document</th><th>Owner</th><th>Station Holding</th><th>Reporter Contact</th><th>Approval</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
           <tbody>
           <?php
           $ma = $conn->query("
-            SELECT ma.id, ma.alert_status, ma.created_at, ma.station,
+            SELECT ma.id, ma.alert_status, ma.created_at, ma.station, ma.admin_approved, ma.station_approved,
                    lr.doc_type, lr.sur_name, lr.given_name, lr.reporter_name, lr.reporter_phone,
                    p.id as pay_id, p.status as pay_status, p.amount
             FROM match_alerts ma
@@ -226,18 +260,24 @@ $pendingApproval = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='c
                 'new'             => '<span class="bd bd-danger">New Match</span>',
                 'admin_notified'  => '<span class="bd bd-amber">Admin Notified</span>',
                 'owner_notified'  => '<span class="bd bd-blue">Owner Notified</span>',
+                'payment_pending' => '<span class="bd bd-teal">Ready to Pay</span>',
                 'pending'         => '<span class="bd bd-amber">Pending</span>',
                 'paid'            => '<span class="bd bd-green">Paid</span>',
                 'collected'       => '<span class="bd bd-grey">Collected</span>',
                 'closed'          => '<span class="bd bd-grey">Closed</span>',
                 default           => '<span class="bd bd-grey">' . htmlspecialchars($r['alert_status']) . '</span>'
               };
+              $adminApproved   = (int)$r['admin_approved'] === 1;
+              $stationApproved = (int)$r['station_approved'] === 1;
+              $approvalChips = ($adminApproved ? '<span class="bd bd-green"><i class="bi bi-shield-check"></i> Admin</span>' : '<span class="bd bd-grey">Admin Pending</span>')
+                             . ' ' . ($stationApproved ? '<span class="bd bd-green"><i class="bi bi-building-check"></i> Station</span>' : '<span class="bd bd-grey">Station Pending</span>');
               echo "<tr>
                 <td>{$r['id']}</td>
                 <td><span class='bd bd-blue'>" . htmlspecialchars(ucwords(str_replace('_', ' ', $r['doc_type'] ?? ''))) . "</span></td>
                 <td>" . htmlspecialchars($r['sur_name'] . ' ' . $r['given_name']) . "</td>
                 <td>" . htmlspecialchars($r['station'] ?? '—') . "</td>
                 <td>" . htmlspecialchars($r['reporter_name'] ?? '—') . "<br><a href='tel:" . htmlspecialchars($r['reporter_phone'] ?? '') . "'>" . htmlspecialchars($r['reporter_phone'] ?? '—') . "</a></td>
+                <td>$approvalChips</td>
                 <td>$badge</td>
                 <td>" . htmlspecialchars($r['created_at']) . "</td>
                 <td>";
@@ -245,6 +285,9 @@ $pendingApproval = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='c
                 echo "<span style='color:var(--green);font-weight:600;'><i class='bi bi-check2-all'></i> Done</span>";
               } else {
                 $aid = (int)$r['id'];
+                if (!$adminApproved) {
+                  echo "<form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='approve_match_admin' class='btn btn-primary btn-sm mb-1'><i class='bi bi-shield-check'></i> Approve Match</button></form> ";
+                }
                 if ($r['pay_id'] && $r['pay_status'] === 'initiated') {
                   echo "<form method='POST' class='d-inline'><input type='hidden' name='payment_id' value='{$r['pay_id']}'><button type='submit' name='confirm_payment' class='btn btn-success btn-sm mb-1'><i class='bi bi-check2'></i> Confirm Pay</button></form> ";
                 }
@@ -256,7 +299,7 @@ $pendingApproval = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='c
               }
               echo "</td></tr>";
             endwhile;
-          else: echo "<tr><td colspan='8'><div class='empty'><i class='bi bi-lightning-charge ei'></i>No match alerts yet</div></td></tr>";
+          else: echo "<tr><td colspan='9'><div class='empty'><i class='bi bi-lightning-charge ei'></i>No match alerts yet</div></td></tr>";
           endif; ?>
           </tbody>
         </table>
@@ -274,7 +317,7 @@ $pendingApproval = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='c
             while ($r = $pm->fetch_assoc()):
               $badge = $r['status'] === 'confirmed' ? '<span class="bd bd-green">Confirmed</span>' : ($r['status'] === 'initiated' ? '<span class="bd bd-amber">Pending</span>' : '<span class="bd bd-danger">Failed</span>');
               if ($r['status'] === 'confirmed' && !empty($r['verification_code'])) {
-                $vc = rtrim(chunk_split($r['verification_code'], 4, '-'), '-');
+                $vc = rtrim(chunk_split($r['verification_code'], 3, '-'), '-');
                 $badge .= '<div class="mt-1 small" style="color:var(--muted);">Code: <code>' . htmlspecialchars($vc) . '</code></div>';
               }
               echo "<tr><td>{$r['id']}</td><td>" . htmlspecialchars($r['payer_name'] ?? '—') . "</td><td><a href='tel:" . htmlspecialchars($r['payer_phone'] ?? '') . "'>" . htmlspecialchars($r['payer_phone'] ?? '—') . "</a></td><td>" . htmlspecialchars($r['id_number'] ?? '—') . "</td><td>UGX " . number_format((float)$r['amount']) . "</td><td>" . htmlspecialchars($r['payment_method']) . "</td><td>$badge</td><td>" . htmlspecialchars($r['initiated_at']) . "</td><td>";
@@ -412,6 +455,109 @@ $pendingApproval = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='c
       </div>
     </div>
 
+    <!-- ── Revenue ───────────────────────────── -->
+    <div id="tRevenue" class="tcard" style="display:none;">
+      <div class="p-4">
+        <div class="stats" style="margin-bottom:1.5rem;">
+          <div class="sc sc-green">
+            <div class="sc-ico"><i class="bi bi-cash-stack"></i></div>
+            <div class="sc-val">UGX <?= number_format($totalRevenue) ?></div>
+            <div class="sc-lbl">Total Collected (<?= $confirmedPayCount ?> payments)</div>
+          </div>
+          <div class="sc sc-amber">
+            <div class="sc-ico"><i class="bi bi-building"></i></div>
+            <div class="sc-val">UGX <?= number_format($totalCommission) ?></div>
+            <div class="sc-lbl">Paid Out to Stations</div>
+          </div>
+          <div class="sc sc-navy">
+            <div class="sc-ico"><i class="bi bi-piggy-bank"></i></div>
+            <div class="sc-val">UGX <?= number_format($netRevenue) ?></div>
+            <div class="sc-lbl">Net Platform Revenue</div>
+          </div>
+        </div>
+
+        <h6 style="color:var(--muted);font-weight:700;font-size:.82rem;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.75rem;">By Station</h6>
+        <div class="table-responsive mb-4">
+          <table class="dt">
+            <thead><tr><th>Station</th><th>Payments</th><th>Collected</th><th>Commission Paid</th></tr></thead>
+            <tbody>
+            <?php
+            $byStation = $conn->query("
+              SELECT ma.station, COUNT(*) cnt, SUM(p.amount) total, SUM(p.station_commission) commission
+              FROM payments p JOIN match_alerts ma ON ma.id = p.match_alert_id
+              WHERE p.status='confirmed'
+              GROUP BY ma.station ORDER BY total DESC");
+            if ($byStation && $byStation->num_rows > 0):
+              while ($r = $byStation->fetch_assoc()):
+                echo "<tr><td>" . htmlspecialchars($r['station'] ?? 'Unknown') . "</td><td>{$r['cnt']}</td><td>UGX " . number_format((float)$r['total']) . "</td><td>UGX " . number_format((float)$r['commission']) . "</td></tr>";
+              endwhile;
+            else: echo "<tr><td colspan='4'><div class='empty'><i class='bi bi-building ei'></i>No confirmed payments yet</div></td></tr>";
+            endif; ?>
+            </tbody>
+          </table>
+        </div>
+
+        <h6 style="color:var(--muted);font-weight:700;font-size:.82rem;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.75rem;">By Document Type</h6>
+        <div class="table-responsive">
+          <table class="dt">
+            <thead><tr><th>Document Type</th><th>Payments</th><th>Collected</th></tr></thead>
+            <tbody>
+            <?php
+            $byType = $conn->query("
+              SELECT lr.doc_type, COUNT(*) cnt, SUM(p.amount) total
+              FROM payments p
+              JOIN match_alerts ma ON ma.id = p.match_alert_id
+              JOIN lost_reports lr ON lr.id = ma.lost_report_id
+              WHERE p.status='confirmed'
+              GROUP BY lr.doc_type ORDER BY total DESC");
+            if ($byType && $byType->num_rows > 0):
+              while ($r = $byType->fetch_assoc()):
+                echo "<tr><td><span class='bd bd-blue'>" . htmlspecialchars(ucwords(str_replace('_',' ',$r['doc_type']))) . "</span></td><td>{$r['cnt']}</td><td>UGX " . number_format((float)$r['total']) . "</td></tr>";
+              endwhile;
+            else: echo "<tr><td colspan='3'><div class='empty'><i class='bi bi-graph-up-arrow ei'></i>No confirmed payments yet</div></td></tr>";
+            endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <?php if ($isSuperAdmin): ?>
+    <div id="tFees" class="tcard" style="display:none;">
+      <div class="p-4">
+        <p style="color:var(--muted);font-size:.85rem;margin-bottom:1.25rem;">
+          Set the recovery fee charged to owners and the commission percentage paid out to the holding station for each document type. Stations only ever see their commission amount, never the full fee.
+        </p>
+        <form method="POST">
+          <div class="table-responsive">
+            <table class="dt">
+              <thead><tr><th>Document Type</th><th>Fee (UGX)</th><th>Station Commission (%)</th><th>Station Gets</th></tr></thead>
+              <tbody>
+              <?php
+              $fees = $conn->query("SELECT doc_type, fee_ugx, commission_percent FROM fee_config ORDER BY doc_type");
+              $i = 0;
+              while ($f = $fees->fetch_assoc()):
+                  $example = number_format($f['fee_ugx'] * $f['commission_percent'] / 100);
+              ?>
+                <tr>
+                  <td>
+                    <span class="bd bd-blue"><?= htmlspecialchars(ucwords(str_replace('_',' ',$f['doc_type']))) ?></span>
+                    <input type="hidden" name="doc_type[]" value="<?= htmlspecialchars($f['doc_type']) ?>">
+                  </td>
+                  <td><input type="number" step="500" min="0" name="fee_ugx[]" class="fc" style="max-width:140px;" value="<?= (int)$f['fee_ugx'] ?>"></td>
+                  <td><input type="number" step="1" min="0" max="100" name="commission_percent[]" class="fc" style="max-width:100px;" value="<?= rtrim(rtrim(number_format($f['commission_percent'],2,'.',''),'0'),'.') ?>"></td>
+                  <td class="fee-example" style="color:var(--muted);font-size:.85rem;">UGX <?= $example ?></td>
+                </tr>
+              <?php $i++; endwhile; ?>
+              </tbody>
+            </table>
+          </div>
+          <button type="submit" name="update_fees" class="btn btn-primary mt-3"><i class="bi bi-check2"></i> Save Fee Settings</button>
+        </form>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <?php if ($isSuperAdmin): ?>
     <div id="tNotifs" class="tcard" style="display:none;">
       <div class="table-responsive">
@@ -442,6 +588,8 @@ $pendingApproval = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='c
     <?php endif; ?>
 
   </div><!-- /.page -->
+    </div><!-- /.main-area -->
+  </div><!-- /.dash-shell -->
 
   <!-- ── Add Station Modal (super admin) ─────── -->
   <?php if ($isSuperAdmin): ?>
@@ -533,10 +681,13 @@ $pendingApproval = $conn->query("SELECT COUNT(*) c FROM payments WHERE status='c
     // Tab switching
     function switchTab(btn, id) {
       document.querySelectorAll('.tcard').forEach(c => c.style.display = 'none');
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.sidebar-link').forEach(b => b.classList.remove('active'));
       document.getElementById(id).style.display = 'block';
       btn.classList.add('active');
+      closeSidebar();
     }
+    function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebarOverlay').classList.add('open'); }
+    function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('open'); }
     // Mark notifications read via AJAX (keeps user on page)
     document.getElementById('bellLink')?.addEventListener('click', e => {
       e.preventDefault();

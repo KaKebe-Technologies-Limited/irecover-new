@@ -52,14 +52,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login — iRecovery</title>
+    <title>Admin Login — iRecovery Uganda</title>
+    <meta name="description" content="Administrator login for iRecovery Uganda — the document recovery platform's management console.">
+    <meta name="robots" content="noindex, nofollow">
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/1570/1570887.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/variables.css">
-    <link rel="stylesheet" href="assets/css/base.css">
-    <link rel="stylesheet" href="assets/css/login.css">
+    <link rel="stylesheet" href="assets/css/variables.css?v=<?= @filemtime(__DIR__.'/assets/css/variables.css') ?>">
+    <link rel="stylesheet" href="assets/css/base.css?v=<?= @filemtime(__DIR__.'/assets/css/base.css') ?>">
+    <link rel="stylesheet" href="assets/css/login.css?v=<?= @filemtime(__DIR__.'/assets/css/login.css') ?>">
 </head>
 <body class="bg-overlay">
 

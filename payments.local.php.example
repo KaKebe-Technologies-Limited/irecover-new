@@ -1,0 +1,13 @@
+<?php
+// ─────────────────────────────────────────────
+// IOTec Pay credentials — TEMPLATE.
+// Copy this file to `payments.local.php` (gitignored) and fill in the
+// real values there. `payments.local.php` must NEVER be committed.
+// ─────────────────────────────────────────────
+define('IOTEC_CLIENT_ID', 'your_client_id');
+define('IOTEC_CLIENT_SECRET', 'your_client_secret');
+define('IOTEC_TEST_WALLET_ID', 'your_test_wallet_id');
+define('IOTEC_LIVE_WALLET_ID', 'your_live_wallet_id');
+define('IOTEC_IPN_SECRET', 'your_ipn_secret');
+
+define('IOTEC_SANDBOX', true);

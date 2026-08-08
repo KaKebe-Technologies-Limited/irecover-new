@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /$
+Allow: /index.php$
+Disallow: /admin/
+Disallow: /station/
+Disallow: /login.php
+Disallow: /adminlogin.php
+Disallow: /pay.php
+Disallow: /payment_status.php
+Disallow: /payments_callback.php
+Disallow: /receipt.php
+Disallow: /get_receipt.php
+Disallow: /uploads/
+Disallow: /database/
+Disallow: /includes/
+Disallow: /_dbcheck.php
+
+Sitemap: https://irecover.site/sitemap.xml

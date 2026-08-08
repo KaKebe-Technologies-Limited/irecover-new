@@ -113,6 +113,15 @@ if (!$found) {
 
 $result_status = $found ? 'matched' : 'not_found';
 
+// ── Ensure there's a payable match record for admin/station to approve ──
+$alert_id_for_match = null;
+if ($found) {
+    $alert_id_for_match = ensureMatchAlertForSearch(
+        $conn, $doc_type, $found['id_number'], $found['sur_name'] ?? '', $found['given_name'] ?? '',
+        $found['dob'] ?? null, (int)$found['id'], $found['station_holding'] ?? '', $searcher_phone
+    );
+}
+
 // ── Log every search ──────────────────────────
 $matched_id = $found ? ($found['id'] ?? null) : null;
 $log = $conn->prepare(
@@ -289,12 +298,13 @@ $fee = 30000; // Fixed fee UGX 30,000
 <div class="result-card">
 
 <?php if ($found):
-    $raw_id    = $found['id_number'] ?? $id_number;
-    $masked    = maskId($raw_id);
-    $doc_label = ucwords(str_replace('_', ' ', $found['doc_type'] ?? $doc_type));
-    $station   = htmlspecialchars($found['station_holding'] ?? 'Contact Admin');
-    $date_f    = htmlspecialchars($found['submitted_at'] ?? '—');
-    $img_src   = '';
+    $raw_id     = $found['id_number'] ?? $id_number;
+    $masked     = maskId($raw_id);
+    $doc_label  = ucwords(str_replace('_', ' ', $found['doc_type'] ?? $doc_type));
+    $station    = htmlspecialchars($found['station_holding'] ?? 'Contact Admin');
+    $date_f     = htmlspecialchars($found['submitted_at'] ?? '—');
+    $feeAmount  = getFeeConfig($conn, $found['doc_type'] ?? $doc_type)['fee_ugx'];
+    $img_src    = '';
     if (!empty($found['front_img'])) {
         $img_src = $result_src === 'legacy'
             ? htmlspecialchars($found['front_img'])
@@ -308,7 +318,7 @@ $fee = 30000; // Fixed fee UGX 30,000
         <div>
             <strong>Your Document Has Been Found!</strong>
             <div style="font-size:.83rem;color:#555;margin-top:.15rem;">
-                A match exists in our database. Pay UGX 30,000 to retrieve it.
+                A match exists in our database. Our team will verify it, then you can pay to retrieve it.
             </div>
         </div>
     </div>
@@ -348,26 +358,26 @@ $fee = 30000; // Fixed fee UGX 30,000
     <!-- Fee callout -->
     <div class="fee-callout">
         <div>
-            <div class="fee-amount">UGX 30,000</div>
+            <div class="fee-amount">UGX <?= number_format($feeAmount) ?></div>
             <div class="fee-label">One-time document recovery fee</div>
         </div>
         <div style="margin-left:auto;font-size:.82rem;color:#666;max-width:220px;">
-            Pay via Mobile Money, get an instant PDF receipt, then collect your document from the station.
+            Once our team and the holding station verify the match, you'll be able to pay by Mobile Money and get an instant PDF receipt.
         </div>
     </div>
 
     <!-- Action buttons -->
     <div class="action-buttons">
-        <a href="pay.php?id_number=<?= urlencode($raw_id) ?>&doc_type=<?= urlencode($found['doc_type'] ?? $doc_type) ?>&station=<?= urlencode($found['station_holding'] ?? '') ?>&name=<?= urlencode(trim($found['sur_name'].' '.$found['given_name'])) ?>" class="btn-pay">
-            <i class="bi bi-phone"></i> Pay UGX 30,000 &amp; Get Receipt
+        <a href="track.php?id_number=<?= urlencode($raw_id) ?>" class="btn-pay">
+            <i class="bi bi-signpost-split"></i> Check Verification &amp; Payment Status
         </a>
     </div>
 
     <!-- Mini steps -->
     <ul class="steps-mini">
-        <li><div class="sn">1</div><span>Click <strong>Pay UGX 30,000</strong> and enter your Mobile Money number &amp; PIN.</span></li>
-        <li><div class="sn">2</div><span>Your payment is confirmed instantly and a <strong>PDF receipt</strong> is generated.</span></li>
-        <li><div class="sn">3</div><span>Visit the <strong>holding station</strong> with your receipt and a valid ID to collect your document.</span></li>
+        <li><div class="sn">1</div><span>Call our team to confirm your identity and document details.</span></li>
+        <li><div class="sn">2</div><span>Once <strong>admin and the holding station both verify</strong> the match, payment unlocks.</span></li>
+        <li><div class="sn">3</div><span>Pay by Mobile Money, get your <strong>PDF receipt + pickup code</strong>, then collect from the station.</span></li>
     </ul>
 
     <div class="text-center mt-3">

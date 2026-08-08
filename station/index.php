@@ -21,6 +21,14 @@ if (isset($_GET['mark_read'])) {
     $mr->close();
 }
 
+// ── Station approval of a match (step 2 of 2 before payment) ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_match_station'])) {
+    $alert_id = (int)($_POST['alert_id'] ?? 0);
+    if ($alert_id > 0) approveMatchByStation($conn, $alert_id, $userId);
+    header('Location: index.php');
+    exit();
+}
+
 // ── Station status actions: paid / pending / collected ─
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_status'])) {
     $alert_id   = (int)($_POST['alert_id'] ?? 0);
@@ -84,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_code'])) {
         $verifyErr = 'Please enter the verification code from the receipt.';
     } else {
         $vs = $conn->prepare(
-            "SELECT p.id, p.payer_name, p.payer_phone, p.id_number, p.amount, p.status, p.download_allowed, p.verification_code,
+            "SELECT p.id, p.payer_name, p.payer_phone, p.id_number, p.station_commission, p.status, p.download_allowed, p.verification_code,
                     ma.id AS alert_id, ma.alert_status, ma.station,
                     lr.doc_type, lr.sur_name, lr.given_name
              FROM payments p
@@ -123,6 +131,12 @@ $stmt = $conn->prepare("SELECT COUNT(*) c FROM match_alerts WHERE station=? AND 
 $stmt = $conn->prepare("SELECT COUNT(*) c FROM national_ids WHERE user_action='Reported' AND reporter=?"); $stmt->bind_param('s',$userId); $stmt->execute(); $rptCount = $stmt->get_result()->fetch_assoc()['c']; $stmt->close();
 
 $unreadNotif = getUnreadCount($conn, 'station', $userId);
+
+$earn = $conn->prepare("SELECT COALESCE(SUM(p.station_commission),0) total, COUNT(*) cnt FROM payments p JOIN match_alerts ma ON ma.id=p.match_alert_id WHERE ma.station=? AND p.status='confirmed'");
+$earn->bind_param('s', $userId); $earn->execute();
+$earnRow = $earn->get_result()->fetch_assoc(); $earn->close();
+$totalEarnings = (float)$earnRow['total'];
+$earningsCount = (int)$earnRow['cnt'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -134,28 +148,46 @@ $unreadNotif = getUnreadCount($conn, 'station', $userId);
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/css/variables.css">
-    <link rel="stylesheet" href="../assets/css/dashboard.css">
+    <link rel="stylesheet" href="../assets/css/variables.css?v=<?= @filemtime(__DIR__.'/../assets/css/variables.css') ?>">
+    <link rel="stylesheet" href="../assets/css/dashboard.css?v=<?= @filemtime(__DIR__.'/../assets/css/dashboard.css') ?>">
 </head>
 <body>
 
-  <header class="dash-header">
-    <a href="index.php" class="hd-brand">
-      <span class="hd-brand-ico"><i class="bi bi-building"></i></span>
-      iRecovery Station
-    </a>
-    <div class="hd-right">
-      <a href="?mark_read=1" class="hd-bell" title="Notifications">
-        <i class="bi bi-bell-fill"></i>
-        <?php if ($unreadNotif > 0): ?><span class="nb-dot"><?= $unreadNotif ?></span><?php endif; ?>
+  <div class="dash-shell">
+    <!-- ── Sidebar ─────────────────────────────── -->
+    <aside class="sidebar" id="sidebar">
+      <a href="index.php" class="sidebar-brand">
+        <span class="hd-brand-ico"><i class="bi bi-building"></i></span>
+        iRecovery Station
       </a>
-      <div class="user-pill">
-        <div class="u-av"><?= strtoupper(substr($userId, 0, 1)) ?></div>
-        <div><div class="u-nm"><?= htmlspecialchars($userId) ?></div><div class="u-role">Station Admin</div></div>
+      <nav class="sidebar-nav" id="tabBar">
+        <button class="sidebar-link active" id="tabMatches" onclick="switchTab(this,'tMatches')"><i class="bi bi-lightning-charge"></i> Matches<?php if ($alertCount > 0): ?><span class="nb"><?= $alertCount ?></span><?php endif; ?></button>
+        <button class="sidebar-link" onclick="switchTab(this,'tFound')"><i class="bi bi-cloud-upload"></i> Found Docs</button>
+        <button class="sidebar-link" onclick="switchTab(this,'tVerify')"><i class="bi bi-shield-check"></i> Verify Code</button>
+        <button class="sidebar-link" onclick="switchTab(this,'tCollected')"><i class="bi bi-check2-circle"></i> Collected</button>
+        <button class="sidebar-link" onclick="switchTab(this,'tEarnings')"><i class="bi bi-wallet2"></i> My Earnings</button>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="sidebar-user">
+          <div class="u-av"><?= strtoupper(substr($userId, 0, 1)) ?></div>
+          <div><div class="u-nm"><?= htmlspecialchars($userId) ?></div><div class="u-role">Station Admin</div></div>
+        </div>
+        <a href="logout.php" class="btn-out" style="width:100%;justify-content:center;"><i class="bi bi-box-arrow-right"></i> Logout</a>
       </div>
-      <a href="logout.php" class="btn-out"><i class="bi bi-box-arrow-right"></i> Logout</a>
-    </div>
-  </header>
+    </aside>
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+    <div class="main-area">
+      <!-- ── Topbar ──────────────────────────────── -->
+      <div class="topbar">
+        <button class="hamburger" onclick="openSidebar()" aria-label="Menu"><i class="bi bi-list"></i></button>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:.75rem;">
+          <a href="?mark_read=1" class="hd-bell hd-bell-light" title="Notifications">
+            <i class="bi bi-bell-fill"></i>
+            <?php if ($unreadNotif > 0): ?><span class="nb-dot"><?= $unreadNotif ?></span><?php endif; ?>
+          </a>
+        </div>
+      </div>
 
   <div class="page">
 
@@ -211,27 +243,24 @@ $unreadNotif = getUnreadCount($conn, 'station', $userId);
         <div class="sc-val"><?= $rptCount ?></div>
         <div class="sc-lbl">Lost Reports</div>
       </div>
-    </div>
-
-    <!-- ── Tabs ──────────────────────────────── -->
-    <div class="tabs" id="tabBar">
-      <button class="tab-btn active" id="tabMatches" onclick="switchTab(this,'tMatches')"><i class="bi bi-lightning-charge"></i> Matches<?php if ($alertCount > 0): ?><span class="nb"><?= $alertCount ?></span><?php endif; ?></button>
-      <button class="tab-btn" onclick="switchTab(this,'tFound')"><i class="bi bi-cloud-upload"></i> Found Docs</button>
-      <button class="tab-btn" onclick="switchTab(this,'tVerify')"><i class="bi bi-shield-check"></i> Verify Code</button>
-      <button class="tab-btn" onclick="switchTab(this,'tCollected')"><i class="bi bi-check2-circle"></i> Collected</button>
+      <div class="sc sc-teal">
+        <div class="sc-ico"><i class="bi bi-wallet2"></i></div>
+        <div class="sc-val">UGX <?= number_format($totalEarnings) ?></div>
+        <div class="sc-lbl">My Earnings</div>
+      </div>
     </div>
 
     <!-- ── Match Alerts ──────────────────────── -->
     <div id="tMatches" class="tcard">
       <div class="table-responsive">
         <table class="dt">
-          <thead><tr><th>#</th><th>Document</th><th>Owner</th><th>Reporter Contact</th><th>Payment</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
+          <thead><tr><th>#</th><th>Document</th><th>Owner</th><th>Reporter Contact</th><th>Approval</th><th>Your Commission</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
           <tbody>
           <?php
           $maStmt = $conn->prepare("
-            SELECT ma.id, ma.alert_status, ma.created_at,
+            SELECT ma.id, ma.alert_status, ma.created_at, ma.admin_approved, ma.station_approved,
                    lr.doc_type, lr.sur_name, lr.given_name, lr.reporter_name, lr.reporter_phone,
-                   p.id as pay_id, p.status as pay_status, p.amount, p.payer_phone
+                   p.id as pay_id, p.status as pay_status, p.station_commission, p.payer_phone
             FROM match_alerts ma
             LEFT JOIN lost_reports lr ON lr.id = ma.lost_report_id
             LEFT JOIN payments p ON p.match_alert_id = ma.id
@@ -242,15 +271,21 @@ $unreadNotif = getUnreadCount($conn, 'station', $userId);
           if ($maRes && $maRes->num_rows > 0):
             while ($r = $maRes->fetch_assoc()):
               $statusBadge = match($r['alert_status']) {
-                'new'            => '<span class="bd bd-danger">New</span>',
-                'paid'           => '<span class="bd bd-green">Paid — Ready</span>',
-                'pending'        => '<span class="bd bd-amber">Pending</span>',
-                'collected'      => '<span class="bd bd-grey">Collected</span>',
-                'owner_notified' => '<span class="bd bd-blue">Owner Notified</span>',
-                default          => '<span class="bd bd-grey">' . htmlspecialchars($r['alert_status']) . '</span>'
+                'new'             => '<span class="bd bd-danger">New</span>',
+                'payment_pending' => '<span class="bd bd-teal">Ready to Pay</span>',
+                'paid'            => '<span class="bd bd-green">Paid — Ready</span>',
+                'pending'         => '<span class="bd bd-amber">Pending</span>',
+                'collected'       => '<span class="bd bd-grey">Collected</span>',
+                'owner_notified'  => '<span class="bd bd-blue">Owner Notified</span>',
+                default           => '<span class="bd bd-grey">' . htmlspecialchars($r['alert_status']) . '</span>'
               };
+              $adminApproved   = (int)$r['admin_approved'] === 1;
+              $stationApproved = (int)$r['station_approved'] === 1;
+              $approvalChips = ($adminApproved ? '<span class="bd bd-green"><i class="bi bi-shield-check"></i> Admin</span>' : '<span class="bd bd-grey">Admin Pending</span>')
+                             . ' ' . ($stationApproved ? '<span class="bd bd-green"><i class="bi bi-building-check"></i> You</span>' : '<span class="bd bd-grey">Your Confirm.</span>');
+              // Commission-only — station never sees the real fee amount, only their cut
               $payBadge = $r['pay_id']
-                ? ($r['pay_status'] === 'confirmed' ? '<span class="bd bd-green">Paid UGX ' . number_format((float)$r['amount']) . '</span>'
+                ? ($r['pay_status'] === 'confirmed' ? '<span class="bd bd-green">UGX ' . number_format((float)($r['station_commission'] ?? 0)) . '</span>'
                                                      : '<span class="bd bd-amber">Pending</span>')
                 : '<span class="bd bd-grey">None</span>';
               echo "<tr>
@@ -258,6 +293,7 @@ $unreadNotif = getUnreadCount($conn, 'station', $userId);
                 <td><span class='bd bd-blue'>" . htmlspecialchars(ucwords(str_replace('_', ' ', $r['doc_type'] ?? ''))) . "</span></td>
                 <td>" . htmlspecialchars(($r['sur_name'] ?? '') . ' ' . ($r['given_name'] ?? '')) . "</td>
                 <td>" . htmlspecialchars($r['reporter_name'] ?? '—') . "<br><a href='tel:" . htmlspecialchars($r['reporter_phone'] ?? '') . "' style='color:var(--teal);'>" . htmlspecialchars($r['reporter_phone'] ?? '—') . "</a></td>
+                <td>$approvalChips</td>
                 <td>$payBadge</td>
                 <td>$statusBadge</td>
                 <td>" . htmlspecialchars($r['created_at']) . "</td>
@@ -266,6 +302,9 @@ $unreadNotif = getUnreadCount($conn, 'station', $userId);
                 echo "<span style='color:var(--green);font-weight:600;'><i class='bi bi-check2-all'></i> Done</span>";
               } else {
                 $aid = (int)$r['id'];
+                if (!$stationApproved) {
+                  echo "<form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='approve_match_station' class='btn btn-primary btn-sm mb-1'><i class='bi bi-building-check'></i> Confirm It's Ours</button></form> ";
+                }
                 echo "<div class='act-grp'>
                   <form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='set_status' value='paid' class='btn btn-success btn-sm'><i class='bi bi-cash'></i> Paid</button></form>
                   <form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='set_status' value='pending' class='btn btn-warning btn-sm'><i class='bi bi-hourglass-split'></i> Pending</button></form>
@@ -274,7 +313,7 @@ $unreadNotif = getUnreadCount($conn, 'station', $userId);
               }
               echo "</td></tr>";
             endwhile;
-          else: echo "<tr><td colspan='8'><div class='empty'><i class='bi bi-lightning-charge ei'></i>No match alerts for your station yet</div></td></tr>";
+          else: echo "<tr><td colspan='9'><div class='empty'><i class='bi bi-lightning-charge ei'></i>No match alerts for your station yet</div></td></tr>";
           endif; ?>
           </tbody>
         </table>
@@ -361,11 +400,11 @@ $unreadNotif = getUnreadCount($conn, 'station', $userId);
                 <i class="bi bi-check-circle-fill" style="font-size:1.3rem;"></i>
                 <strong>Payment verified — ready to release</strong>
               </div>
-              <div class="verify-code-display"><?= htmlspecialchars(rtrim(chunk_split($verify['verification_code'], 4, '-'), '-')) ?></div>
+              <div class="verify-code-display"><?= htmlspecialchars(rtrim(chunk_split($verify['verification_code'], 3, '-'), '-')) ?></div>
               <div class="kv"><span class="k">Document Owner</span><span class="v"><?= htmlspecialchars(trim(($verify['sur_name'] ?? '') . ' ' . ($verify['given_name'] ?? '')) ?: $verify['payer_name']) ?></span></div>
               <div class="kv"><span class="k">Document Type</span><span class="v"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $verify['doc_type'] ?? 'Document'))) ?></span></div>
               <div class="kv"><span class="k">ID / NIN</span><span class="v"><?= htmlspecialchars($verify['id_number'] ?? '—') ?></span></div>
-              <div class="kv"><span class="k">Amount Paid</span><span class="v">UGX <?= number_format((float)($verify['amount'] ?? 0)) ?></span></div>
+              <div class="kv"><span class="k">Your Commission</span><span class="v">UGX <?= number_format((float)($verify['station_commission'] ?? 0)) ?></span></div>
               <div class="kv"><span class="k">Payer Phone</span><span class="v"><?= htmlspecialchars($verify['payer_phone'] ?? '—') ?></span></div>
 
               <form method="POST" class="mt-3">
@@ -421,7 +460,48 @@ $unreadNotif = getUnreadCount($conn, 'station', $userId);
       </div>
     </div>
 
+    <!-- ── My Earnings ─────────────────────────── -->
+    <div id="tEarnings" class="tcard" style="display:none;">
+      <div class="p-4">
+        <div class="stats" style="margin-bottom:1.5rem;">
+          <div class="sc sc-teal">
+            <div class="sc-ico"><i class="bi bi-wallet2"></i></div>
+            <div class="sc-val">UGX <?= number_format($totalEarnings) ?></div>
+            <div class="sc-lbl">Total Earned (<?= $earningsCount ?> pickups)</div>
+          </div>
+        </div>
+        <p style="color:var(--muted);font-size:.85rem;">
+          This is your commission from confirmed payments — the percentage set by iRecovery admin per document type. Full fee amounts are not shown here; only your share.
+        </p>
+        <div class="table-responsive mt-3">
+          <table class="dt">
+            <thead><tr><th>#</th><th>Document</th><th>ID / NIN</th><th>Your Commission</th><th>Date</th></tr></thead>
+            <tbody>
+            <?php
+            $eq = $conn->prepare("
+              SELECT p.id, p.id_number, p.station_commission, p.confirmed_at, lr.doc_type
+              FROM payments p
+              JOIN match_alerts ma ON ma.id = p.match_alert_id
+              LEFT JOIN lost_reports lr ON lr.id = ma.lost_report_id
+              WHERE ma.station=? AND p.status='confirmed'
+              ORDER BY p.confirmed_at DESC LIMIT 100");
+            $eq->bind_param('s', $userId); $eq->execute();
+            $eRes = $eq->get_result(); $eq->close();
+            if ($eRes && $eRes->num_rows > 0):
+              while ($r = $eRes->fetch_assoc()):
+                echo "<tr><td>{$r['id']}</td><td><span class='bd bd-blue'>" . htmlspecialchars(ucwords(str_replace('_',' ',$r['doc_type'] ?? ''))) . "</span></td><td>" . htmlspecialchars($r['id_number'] ?? '—') . "</td><td><span class='bd bd-green'>UGX " . number_format((float)$r['station_commission']) . "</span></td><td>" . htmlspecialchars($r['confirmed_at'] ?? '—') . "</td></tr>";
+              endwhile;
+            else: echo "<tr><td colspan='5'><div class='empty'><i class='bi bi-wallet2 ei'></i>No earnings yet</div></td></tr>";
+            endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /.page -->
+    </div><!-- /.main-area -->
+  </div><!-- /.dash-shell -->
 
   <!-- ── Collection Modal (by alert) ─────────── -->
   <div id="collectModal" class="mo-bg">
@@ -476,10 +556,13 @@ $unreadNotif = getUnreadCount($conn, 'station', $userId);
   <script>
     function switchTab(btn, id) {
       document.querySelectorAll('.tcard').forEach(c => c.style.display = 'none');
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.sidebar-link').forEach(b => b.classList.remove('active'));
       document.getElementById(id).style.display = 'block';
       btn.classList.add('active');
+      closeSidebar();
     }
+    function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebarOverlay').classList.add('open'); }
+    function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('open'); }
     function filterTable() {
       const q = document.getElementById('searchInput')?.value.toLowerCase() ?? '';
       const tbl = document.querySelector('.tcard[style*="block"]') || document.getElementById('tMatches');
