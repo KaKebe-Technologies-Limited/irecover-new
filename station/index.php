@@ -291,7 +291,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 <td><?= htmlspecialchars($r['submitted_at'] ?? '—') ?></td>
                 <td><button class="btn btn-outline view-btn"
                   data-id="<?= (int)$r['id'] ?>" data-type="<?= htmlspecialchars(ucwords(str_replace('_',' ',$r['doc_type']))) ?>" data-name="<?= htmlspecialchars($r['sur_name']) ?>"
-                  data-second-name="<?= htmlspecialchars($r['given_name']) ?>" data-front-image="<?= htmlspecialchars($r['front_img'] ? '../'.$r['front_img'] : '') ?>" data-back-image="<?= htmlspecialchars($r['back_img'] ? '../'.$r['back_img'] : '') ?>"
+                  data-second-name="<?= htmlspecialchars($r['given_name']) ?>" data-front-image="<?= htmlspecialchars(docImageUrl($r['front_img'], '../')) ?>" data-back-image="<?= htmlspecialchars(docImageUrl($r['back_img'], '../')) ?>"
                   data-status="<?= htmlspecialchars($r['action']) ?>" data-date="<?= htmlspecialchars($r['submitted_at'] ?? '') ?>"><i class="bi bi-eye"></i> View</button></td>
               </tr>
             <?php endforeach; endif; ?>
@@ -391,6 +391,8 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 'collected' => '<span class="bd bd-grey">Collected</span>',
                 default     => '<span class="bd bd-grey">' . htmlspecialchars($r['action']) . '</span>'
               };
+              $frontUrl = htmlspecialchars(docImageUrl($r['front_img'] ?? '', '../uploads/'));
+              $backUrl  = htmlspecialchars(docImageUrl($r['back_img']  ?? '', '../uploads/'));
               echo "<tr>
                 <td>{$r['id']}</td>
                 <td><span class='bd bd-blue'>" . htmlspecialchars(ucwords(str_replace('_', ' ', $r['doc_type']))) . "</span></td>
@@ -398,7 +400,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 <td>" . htmlspecialchars($r['id_number'] ?? '—') . "</td>
                 <td>$ab</td>
                 <td>" . htmlspecialchars($r['submitted_at']) . "</td>
-                <td><button class='btn btn-outline view-btn' data-id='{$r['id']}' data-type='" . htmlspecialchars(ucwords(str_replace('_', ' ', $r['doc_type']))) . "' data-name='" . htmlspecialchars($r['sur_name']) . "' data-second-name='" . htmlspecialchars($r['given_name']) . "' data-front-image='../uploads/" . htmlspecialchars($r['front_img'] ?? '') . "' data-back-image='../uploads/" . htmlspecialchars($r['back_img'] ?? '') . "' data-status='" . htmlspecialchars($r['action']) . "' data-date='" . htmlspecialchars($r['submitted_at']) . "'><i class='bi bi-eye'></i> View</button></td>
+                <td><button class='btn btn-outline view-btn' data-id='{$r['id']}' data-type='" . htmlspecialchars(ucwords(str_replace('_', ' ', $r['doc_type']))) . "' data-name='" . htmlspecialchars($r['sur_name']) . "' data-second-name='" . htmlspecialchars($r['given_name']) . "' data-front-image='{$frontUrl}' data-back-image='{$backUrl}' data-status='" . htmlspecialchars($r['action']) . "' data-date='" . htmlspecialchars($r['submitted_at']) . "'><i class='bi bi-eye'></i> View</button></td>
               </tr>";
             endwhile;
           endif;
@@ -410,6 +412,8 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
             $hasRows = true;
             while ($r = $legRes->fetch_assoc()):
               $ab = ($r['action'] === 'Found') ? '<span class="bd bd-green">Found</span>' : '<span class="bd bd-amber">' . htmlspecialchars($r['action']) . '</span>';
+              $frontUrl = htmlspecialchars(docImageUrl($r['front_img'], '../uploads/'));
+              $backUrl  = htmlspecialchars(docImageUrl($r['back_img'],  '../uploads/'));
               echo "<tr>
                 <td>{$r['id']}</td>
                 <td><span class='bd bd-blue'>{$r['doc_type']}</span></td>
@@ -417,7 +421,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 <td>" . htmlspecialchars($r['id_number']) . "</td>
                 <td>$ab</td>
                 <td>" . htmlspecialchars($r['submitted_at']) . "</td>
-                <td><button class='btn btn-outline view-btn' data-id='{$r['id']}' data-type='{$r['doc_type']}' data-name='" . htmlspecialchars($r['sur_name']) . "' data-second-name='" . htmlspecialchars($r['given_name']) . "' data-front-image='../uploads/" . htmlspecialchars($r['front_img']) . "' data-back-image='../uploads/" . htmlspecialchars($r['back_img']) . "' data-status='" . htmlspecialchars($r['action']) . "' data-date='" . htmlspecialchars($r['submitted_at']) . "'><i class='bi bi-eye'></i> View</button></td>
+                <td><button class='btn btn-outline view-btn' data-id='{$r['id']}' data-type='{$r['doc_type']}' data-name='" . htmlspecialchars($r['sur_name']) . "' data-second-name='" . htmlspecialchars($r['given_name']) . "' data-front-image='{$frontUrl}' data-back-image='{$backUrl}' data-status='" . htmlspecialchars($r['action']) . "' data-date='" . htmlspecialchars($r['submitted_at']) . "'><i class='bi bi-eye'></i> View</button></td>
               </tr>";
             endwhile;
           endif;

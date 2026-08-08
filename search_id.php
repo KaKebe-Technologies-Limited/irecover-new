@@ -74,7 +74,7 @@ if (!$found) {
         $stmt->execute();
         $found = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if ($found) { $result_src='legacy'; $found['front_img']='uploads/'.$found['front_img']; $found['back_img']='uploads/'.$found['back_img']; }
+        if ($found) { $result_src='legacy'; $found['front_img']=docImageUrl($found['front_img']); $found['back_img']=docImageUrl($found['back_img']); }
     } elseif ($doc_type === 'driving_permit' || isset($_POST['permitNumber'])) {
         $pn = $id_number ?: ($_POST['permitNumber'] ?? '');
         $stmt = $conn->prepare(
@@ -90,7 +90,7 @@ if (!$found) {
         $stmt->execute();
         $found = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if ($found) { $result_src='legacy'; $found['front_img']='uploads/'.$found['front_img']; $found['back_img']='uploads/'.$found['back_img']; $station_phone='0393249845'; }
+        if ($found) { $result_src='legacy'; $found['front_img']=docImageUrl($found['front_img']); $found['back_img']=docImageUrl($found['back_img']); $station_phone='0393249845'; }
     } elseif ($doc_type === 'student_id' || isset($_POST['studentNumber'])) {
         $sn  = $id_number ?: ($_POST['studentNumber'] ?? '');
         $sch = $_POST['school'] ?? '';
@@ -107,7 +107,7 @@ if (!$found) {
         $stmt->execute();
         $found = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if ($found) { $result_src='legacy'; $found['front_img']='uploads/'.$found['front_img']; $found['back_img']='uploads/'.$found['back_img']; }
+        if ($found) { $result_src='legacy'; $found['front_img']=docImageUrl($found['front_img']); $found['back_img']=docImageUrl($found['back_img']); }
     }
 }
 
@@ -308,7 +308,7 @@ $fee = 30000; // Fixed fee UGX 30,000
     if (!empty($found['front_img'])) {
         $img_src = $result_src === 'legacy'
             ? htmlspecialchars($found['front_img'])
-            : 'uploads/' . htmlspecialchars($found['front_img']);
+            : htmlspecialchars(docImageUrl($found['front_img']));
     }
 ?>
 

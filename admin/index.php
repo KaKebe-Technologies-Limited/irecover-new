@@ -279,7 +279,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 <td><?= htmlspecialchars($r['submitted_at'] ?? '—') ?></td>
                 <td><button class="btn btn-outline view-btn"
                   data-id="<?= (int)$r['id'] ?>" data-type="<?= htmlspecialchars(ucwords(str_replace('_',' ',$r['doc_type']))) ?>" data-name="<?= htmlspecialchars($r['sur_name']) ?>"
-                  data-second-name="<?= htmlspecialchars($r['given_name']) ?>" data-front-image="<?= htmlspecialchars($r['front_img'] ? (str_starts_with($r['front_img'],'uploads/') ? '../'.$r['front_img'] : $r['front_img']) : '') ?>" data-back-image="<?= htmlspecialchars($r['back_img'] ? (str_starts_with($r['back_img'],'uploads/') ? '../'.$r['back_img'] : $r['back_img']) : '') ?>"
+                  data-second-name="<?= htmlspecialchars($r['given_name']) ?>" data-front-image="<?= htmlspecialchars(docImageUrl($r['front_img'], '../')) ?>" data-back-image="<?= htmlspecialchars(docImageUrl($r['back_img'], '../')) ?>"
                   data-status="<?= htmlspecialchars($r['action']) ?>" data-date="<?= htmlspecialchars($r['submitted_at'] ?? '') ?>"><i class="bi bi-eye"></i> View</button></td>
               </tr>
             <?php endforeach; endif; ?>
@@ -454,14 +454,16 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
           <tbody>
           <?php
           $lostQuery = "
-            SELECT national_id as id, 'National ID' AS document_type, sur_name as owner_name, given_name, CONCAT('../uploads/',front) as front, CONCAT('../uploads/',back) as back, user_action, date_found as reported_at FROM national_ids WHERE user_action='Found'
+            SELECT national_id as id, 'National ID' AS document_type, sur_name as owner_name, given_name, front, back, user_action, date_found as reported_at FROM national_ids WHERE user_action='Found'
             UNION ALL
-            SELECT student_id as id, 'Student ID' AS document_type, sur_name as owner_name, given_name, CONCAT('../uploads/',front) as front, CONCAT('../uploads/',back) as back, user_action, date_found as reported_at FROM student_ids WHERE user_action='Found'
+            SELECT student_id as id, 'Student ID' AS document_type, sur_name as owner_name, given_name, front, back, user_action, date_found as reported_at FROM student_ids WHERE user_action='Found'
             UNION ALL
-            SELECT driver_id as id, 'Driving Permit' AS document_type, sur_name as owner_name, given_name, CONCAT('../uploads/',front) as front, CONCAT('../uploads/',back) as back, user_action, date_found as reported_at FROM driving_permits WHERE user_action='Found'";
+            SELECT driver_id as id, 'Driving Permit' AS document_type, sur_name as owner_name, given_name, front, back, user_action, date_found as reported_at FROM driving_permits WHERE user_action='Found'";
           $lost = $conn->query($lostQuery);
           if ($lost && $lost->num_rows > 0):
             while ($row = $lost->fetch_assoc()):
+              $frontUrl = htmlspecialchars(docImageUrl($row['front'], '../uploads/'));
+              $backUrl  = htmlspecialchars(docImageUrl($row['back'],  '../uploads/'));
               echo "<tr>
                 <td>{$row['id']}</td>
                 <td><span class='bd bd-blue'>{$row['document_type']}</span></td>
@@ -470,7 +472,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 <td>{$row['reported_at']}</td>
                 <td><button class='btn btn-outline view-btn'
                   data-id='{$row['id']}' data-type='{$row['document_type']}' data-name='{$row['owner_name']}'
-                  data-second-name='{$row['given_name']}' data-front-image='{$row['front']}' data-back-image='{$row['back']}'
+                  data-second-name='{$row['given_name']}' data-front-image='{$frontUrl}' data-back-image='{$backUrl}'
                   data-status='{$row['user_action']}' data-date='{$row['reported_at']}'><i class='bi bi-eye'></i> View</button></td>
               </tr>";
             endwhile;
@@ -491,13 +493,15 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
           <tbody>
           <?php
           $reported = $conn->query("
-            SELECT national_id as id, 'National ID' AS document_type, sur_name as owner_name, given_name, CONCAT('../uploads/',front) as front, CONCAT('../uploads/',back) as back, user_action, date_found as reported_at FROM national_ids WHERE user_action='Reported'
+            SELECT national_id as id, 'National ID' AS document_type, sur_name as owner_name, given_name, front, back, user_action, date_found as reported_at FROM national_ids WHERE user_action='Reported'
             UNION ALL
-            SELECT student_id as id, 'Student ID' AS document_type, sur_name as owner_name, given_name, CONCAT('../uploads/',front) as front, CONCAT('../uploads/',back) as back, user_action, date_found as reported_at FROM student_ids WHERE user_action='Reported'
+            SELECT student_id as id, 'Student ID' AS document_type, sur_name as owner_name, given_name, front, back, user_action, date_found as reported_at FROM student_ids WHERE user_action='Reported'
             UNION ALL
-            SELECT driver_id as id, 'Driving Permit' AS document_type, sur_name as owner_name, given_name, CONCAT('../uploads/',front) as front, CONCAT('../uploads/',back) as back, user_action, date_found as reported_at FROM driving_permits WHERE user_action='Reported'");
+            SELECT driver_id as id, 'Driving Permit' AS document_type, sur_name as owner_name, given_name, front, back, user_action, date_found as reported_at FROM driving_permits WHERE user_action='Reported'");
           if ($reported && $reported->num_rows > 0):
             while ($row = $reported->fetch_assoc()):
+              $frontUrl = htmlspecialchars(docImageUrl($row['front'], '../uploads/'));
+              $backUrl  = htmlspecialchars(docImageUrl($row['back'],  '../uploads/'));
               echo "<tr>
                 <td>{$row['id']}</td>
                 <td><span class='bd bd-blue'>{$row['document_type']}</span></td>
@@ -506,7 +510,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 <td>{$row['reported_at']}</td>
                 <td><button class='btn btn-outline view-btn'
                   data-id='{$row['id']}' data-type='{$row['document_type']}' data-name='{$row['owner_name']}'
-                  data-second-name='{$row['given_name']}' data-front-image='{$row['front']}' data-back-image='{$row['back']}'
+                  data-second-name='{$row['given_name']}' data-front-image='{$frontUrl}' data-back-image='{$backUrl}'
                   data-status='{$row['user_action']}' data-date='{$row['reported_at']}'><i class='bi bi-eye'></i> View</button></td>
               </tr>";
             endwhile;

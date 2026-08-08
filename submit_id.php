@@ -26,7 +26,9 @@ function saveFile(array $file, string $prefix): ?string {
     $rand = genRand() . '_' . time();
     $name = $prefix . $rand . '.png';
     move_uploaded_file($file['tmp_name'], __DIR__ . '/uploads/' . $name);
-    return $name;
+    // Store the full absolute URL so every page (root, /admin/, /station/)
+    // can render it directly with no relative-path guesswork.
+    return siteBaseUrl() . '/uploads/' . $name;
 }
 
 $status  = null;

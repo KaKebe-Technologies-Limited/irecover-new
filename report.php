@@ -17,7 +17,7 @@ function saveFile(array $file, string $prefix): ?string {
     if (empty($file['tmp_name'])) return null;
     $name = $prefix . genRand() . '_' . time() . '.png';
     move_uploaded_file($file['tmp_name'], __DIR__ . '/uploads/' . $name);
-    return $name;
+    return siteBaseUrl() . '/uploads/' . $name;
 }
 
 $doc_type      = $_POST['doc_type']       ?? '';

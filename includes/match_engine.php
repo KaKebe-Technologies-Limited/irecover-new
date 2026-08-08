@@ -6,6 +6,33 @@
 // ─────────────────────────────────────────────
 
 /**
+ * Absolute base URL of the site (scheme + host + base path), derived from
+ * the current request so it works unmodified on both local XAMPP
+ * (http://localhost/irecover) and production (https://irecover.site).
+ */
+function siteBaseUrl(): string {
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host   = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $dir    = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
+    // Scripts under /admin or /station still belong to the app root
+    $dir    = preg_replace('#/(admin|station)$#', '', $dir);
+    return $scheme . '://' . $host . $dir;
+}
+
+/**
+ * Resolve a stored document image value into a displayable <img> src.
+ * New records store full absolute URLs (returned as-is); older records
+ * store a bare filename relative to /uploads/, which gets the correct
+ * prefix applied based on the current script's location.
+ */
+function docImageUrl(?string $img, string $relPrefix = 'uploads/'): string {
+    $img = trim((string)$img);
+    if ($img === '') return '';
+    if (preg_match('#^https?://#i', $img)) return $img;
+    return $relPrefix . $img;
+}
+
+/**
  * After a found document is uploaded, check if any lost report matches it.
  * Creates a match_alert and notification if a match exists.
  */
@@ -187,8 +214,8 @@ function searchDocumentsBroad(mysqli $conn, string $query, int $limit = 50): arr
     $res = $stmt->get_result();
     while ($r = $res->fetch_assoc()) {
         $r['source'] = 'new';
-        if (!empty($r['front_img'])) $r['front_img'] = 'uploads/' . $r['front_img'];
-        if (!empty($r['back_img']))  $r['back_img']  = 'uploads/' . $r['back_img'];
+        $r['front_img'] = docImageUrl($r['front_img']);
+        $r['back_img']  = docImageUrl($r['back_img']);
         $results[] = $r;
     }
     $stmt->close();
