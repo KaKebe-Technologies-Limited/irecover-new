@@ -291,6 +291,9 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
 
     <!-- ── Tables ────────────────────────────── -->
     <div id="tMatches" class="tcard">
+      <div class="section-search">
+        <div class="search-box"><i class="bi bi-search"></i><input type="text" placeholder="Search matches by name, ID, station…" oninput="filterSection(this,'tMatches')"></div>
+      </div>
       <div class="table-responsive">
         <table class="dt">
           <thead><tr><th>#</th><th>Document</th><th>Owner</th><th>Station Holding</th><th>Reporter Contact</th><th>Approval</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
@@ -382,6 +385,9 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
     </div>
 
     <div id="tSearches" class="tcard" style="display:none;">
+      <div class="section-search">
+        <div class="search-box"><i class="bi bi-search"></i><input type="text" placeholder="Search by name, ID, phone…" oninput="filterSection(this,'tSearches')"></div>
+      </div>
       <div class="table-responsive">
         <table class="dt">
           <thead><tr><th>#</th><th>Doc Type</th><th>Name Searched</th><th>ID / NIN</th><th>Searcher Phone</th><th>Result</th><th>Date</th></tr></thead>
@@ -439,6 +445,9 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
     </div>
 
     <div id="tFound" class="tcard" style="display:none;">
+      <div class="section-search">
+        <div class="search-box"><i class="bi bi-search"></i><input type="text" placeholder="Search found documents by name, ID…" oninput="filterSection(this,'tFound')"></div>
+      </div>
       <div class="table-responsive">
         <table class="dt">
           <thead><tr><th>ID</th><th>Document Type</th><th>Owner Name</th><th>Status</th><th>Reported At</th><th>Action</th></tr></thead>
@@ -473,6 +482,9 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
     </div>
 
     <div id="tReported" class="tcard" style="display:none;">
+      <div class="section-search">
+        <div class="search-box"><i class="bi bi-search"></i><input type="text" placeholder="Search reported documents by name, ID…" oninput="filterSection(this,'tReported')"></div>
+      </div>
       <div class="table-responsive">
         <table class="dt">
           <thead><tr><th>ID</th><th>Document Type</th><th>Owner Name</th><th>Status</th><th>Reported At</th><th>Action</th></tr></thead>
@@ -750,13 +762,19 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
       fetch('', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'mark_read=1' })
         .finally(() => window.location.href = '?mark_read=1');
     });
-    // Table filtering
+    // Table filtering (topbar "Search anything" — filters whichever tab is currently open)
     function filterTable() {
       const q = document.getElementById('searchInput').value.toLowerCase();
-      const active = document.querySelector('.tcard[style*="display: block"], .tcard:not([style*="none"])');
       const tbl = (document.getElementById('tMatches').style.display !== 'none') ? document.getElementById('tMatches')
                 : document.querySelector('.tcard[style*="block"]') || document.getElementById('tMatches');
       tbl.querySelectorAll('tbody tr').forEach(row => {
+        row.style.display = row.innerText.toLowerCase().includes(q) ? '' : 'none';
+      });
+    }
+    // Per-section search box (Matches / Found / Reported / Searches)
+    function filterSection(inputEl, tableId) {
+      const q = inputEl.value.toLowerCase();
+      document.querySelectorAll('#' + tableId + ' tbody tr').forEach(row => {
         row.style.display = row.innerText.toLowerCase().includes(q) ? '' : 'none';
       });
     }

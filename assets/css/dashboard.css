@@ -293,6 +293,8 @@ body {
 }
 @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .tcard .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.section-search { padding: 1rem 1rem 0; }
+.section-search .search-box { max-width: 360px; }
 table.dt { width: 100%; border-collapse: collapse; min-width: 560px; }
 table.dt thead th {
   background: linear-gradient(100deg, var(--navy), var(--navy2));
