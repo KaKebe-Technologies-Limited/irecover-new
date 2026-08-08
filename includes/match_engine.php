@@ -164,6 +164,66 @@ function getRecoveryFee(mysqli $conn, string $doc_type): float {
 }
 
 /**
+ * Broad staff-facing document search (partial match on ID number or name),
+ * across the unified `documents` table and the legacy per-type tables.
+ * Returns up to $limit unified rows: id, doc_type, sur_name, given_name,
+ * dob, id_number, front_img, back_img, station_holding, action, submitted_at, source.
+ */
+function searchDocumentsBroad(mysqli $conn, string $query, int $limit = 50): array {
+    $query = trim($query);
+    if ($query === '') return [];
+    $like = '%' . $query . '%';
+    $results = [];
+
+    $stmt = $conn->prepare(
+        "SELECT id, doc_type, sur_name, given_name, dob, id_number, front_img, back_img,
+                station_holding, action, submitted_at
+         FROM documents
+         WHERE id_number LIKE ? OR sur_name LIKE ? OR given_name LIKE ?
+         ORDER BY submitted_at DESC LIMIT ?"
+    );
+    $stmt->bind_param('sssi', $like, $like, $like, $limit);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($r = $res->fetch_assoc()) {
+        $r['source'] = 'new';
+        if (!empty($r['front_img'])) $r['front_img'] = 'uploads/' . $r['front_img'];
+        if (!empty($r['back_img']))  $r['back_img']  = 'uploads/' . $r['back_img'];
+        $results[] = $r;
+    }
+    $stmt->close();
+
+    $legacy = [
+        'national_ids'    => ['pk' => 'national_id', 'idcol' => 'nin_number',      'type' => 'national_id',    'dob' => 'dob'],
+        'driving_permits' => ['pk' => 'driver_id',    'idcol' => 'permit_number',   'type' => 'driving_permit', 'dob' => 'dob'],
+        'student_ids'     => ['pk' => 'student_id',   'idcol' => 'student_number',  'type' => 'student_id',     'dob' => 'NULL'],
+    ];
+    foreach ($legacy as $table => $cfg) {
+        if (count($results) >= $limit) break;
+        $remaining = $limit - count($results);
+        $sql = "SELECT `{$cfg['pk']}` as id, '{$cfg['type']}' as doc_type, sur_name, given_name, {$cfg['dob']} as dob,
+                        `{$cfg['idcol']}` as id_number, front as front_img, back as back_img,
+                        reporter as station_holding, user_action as action, date_found as submitted_at
+                 FROM `$table`
+                 WHERE `{$cfg['idcol']}` LIKE ? OR sur_name LIKE ? OR given_name LIKE ?
+                 ORDER BY `{$cfg['pk']}` DESC LIMIT ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param('sssi', $like, $like, $like, $remaining);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($r = $res->fetch_assoc()) {
+            $r['source'] = 'legacy';
+            if (!empty($r['front_img'])) $r['front_img'] = 'uploads/' . $r['front_img'];
+            if (!empty($r['back_img']))  $r['back_img']  = 'uploads/' . $r['back_img'];
+            $results[] = $r;
+        }
+        $stmt->close();
+    }
+
+    return $results;
+}
+
+/**
  * Get fee + station commission % for a doc type from fee_config table.
  * Returns ['fee_ugx' => float, 'commission_percent' => float].
  */

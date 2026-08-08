@@ -108,6 +108,10 @@ $totalRevenue      = (float)$rev['total'];
 $totalCommission   = (float)$rev['commission'];
 $netRevenue        = $totalRevenue - $totalCommission;
 $confirmedPayCount = (int)$rev['cnt'];
+
+// ── Staff document search ────────────────────────
+$docSearchQuery   = trim($_GET['q'] ?? '');
+$docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $docSearchQuery) : [];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -132,6 +136,8 @@ $confirmedPayCount = (int)$rev['cnt'];
         iRecovery Admin
       </a>
       <nav class="sidebar-nav" id="tabBar">
+        <a href="../index.php" target="_blank" rel="noopener" class="sidebar-link"><i class="bi bi-box-arrow-up-right"></i> View Website</a>
+        <button class="sidebar-link" onclick="switchTab(this,'tDocSearch')"><i class="bi bi-search-heart"></i> Search Documents</button>
         <button class="sidebar-link active" onclick="switchTab(this,'tMatches')"><i class="bi bi-lightning-charge"></i> Matches<?php if ($matchCount > 0): ?><span class="nb"><?= $matchCount ?></span><?php endif; ?></button>
         <button class="sidebar-link" id="tabPayments" onclick="switchTab(this,'tPayments')"><i class="bi bi-phone"></i> Payments<?php if ($pendingApproval > 0): ?><span class="nb nb-amber"><?= $pendingApproval ?></span><?php endif; ?></button>
         <button class="sidebar-link" onclick="switchTab(this,'tSearches')"><i class="bi bi-search"></i> Searches</button>
@@ -237,6 +243,50 @@ $confirmedPayCount = (int)$rev['cnt'];
         <div class="sc-lbl">Awaiting Approval</div>
       </div>
       <?php endif; ?>
+    </div>
+
+    <!-- ── Search Documents ─────────────────────── -->
+    <div id="tDocSearch" class="tcard" style="display:none;">
+      <div class="p-4">
+        <form method="GET" class="mb-3" style="display:flex;gap:.6rem;flex-wrap:wrap;">
+          <input type="hidden" name="doc_search" value="1">
+          <input type="text" name="q" class="fc" style="max-width:340px;flex:1;" placeholder="Search by ID / NIN number or name…" value="<?= htmlspecialchars($docSearchQuery) ?>">
+          <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Search</button>
+        </form>
+        <div class="table-responsive">
+          <table class="dt">
+            <thead><tr><th>ID</th><th>Doc Type</th><th>Owner Name</th><th>ID / NIN</th><th>Station Holding</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
+            <tbody>
+            <?php if ($docSearchQuery === ''): ?>
+              <tr><td colspan="8"><div class="empty"><i class="bi bi-search-heart ei"></i>Enter an ID number or name above to search all found documents</div></td></tr>
+            <?php elseif (empty($docSearchResults)): ?>
+              <tr><td colspan="8"><div class="empty"><i class="bi bi-search-heart ei"></i>No documents match "<?= htmlspecialchars($docSearchQuery) ?>"</div></td></tr>
+            <?php else: foreach ($docSearchResults as $r):
+              $ab = match($r['action']) {
+                'found', 'Found'         => '<span class="bd bd-green">Found</span>',
+                'matched'                => '<span class="bd bd-amber">Matched</span>',
+                'collected', 'Collected' => '<span class="bd bd-grey">Collected</span>',
+                default                  => '<span class="bd bd-grey">' . htmlspecialchars($r['action']) . '</span>'
+              };
+            ?>
+              <tr>
+                <td><?= (int)$r['id'] ?></td>
+                <td><span class="bd bd-blue"><?= htmlspecialchars(ucwords(str_replace('_',' ',$r['doc_type']))) ?></span></td>
+                <td><?= htmlspecialchars(trim($r['sur_name'].' '.$r['given_name'])) ?></td>
+                <td><?= htmlspecialchars($r['id_number'] ?? '—') ?></td>
+                <td><?= htmlspecialchars($r['station_holding'] ?? '—') ?></td>
+                <td><?= $ab ?></td>
+                <td><?= htmlspecialchars($r['submitted_at'] ?? '—') ?></td>
+                <td><button class="btn btn-outline view-btn"
+                  data-id="<?= (int)$r['id'] ?>" data-type="<?= htmlspecialchars(ucwords(str_replace('_',' ',$r['doc_type']))) ?>" data-name="<?= htmlspecialchars($r['sur_name']) ?>"
+                  data-second-name="<?= htmlspecialchars($r['given_name']) ?>" data-front-image="<?= htmlspecialchars($r['front_img'] ? (str_starts_with($r['front_img'],'uploads/') ? '../'.$r['front_img'] : $r['front_img']) : '') ?>" data-back-image="<?= htmlspecialchars($r['back_img'] ? (str_starts_with($r['back_img'],'uploads/') ? '../'.$r['back_img'] : $r['back_img']) : '') ?>"
+                  data-status="<?= htmlspecialchars($r['action']) ?>" data-date="<?= htmlspecialchars($r['submitted_at'] ?? '') ?>"><i class="bi bi-eye"></i> View</button></td>
+              </tr>
+            <?php endforeach; endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- ── Tables ────────────────────────────── -->
@@ -688,6 +738,12 @@ $confirmedPayCount = (int)$rev['cnt'];
     }
     function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebarOverlay').classList.add('open'); }
     function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('open'); }
+    <?php if (isset($_GET['doc_search'])): ?>
+    document.addEventListener('DOMContentLoaded', () => {
+      const link = [...document.querySelectorAll('.sidebar-link')].find(b => b.textContent.includes('Search Documents'));
+      if (link) switchTab(link, 'tDocSearch');
+    });
+    <?php endif; ?>
     // Mark notifications read via AJAX (keeps user on page)
     document.getElementById('bellLink')?.addEventListener('click', e => {
       e.preventDefault();
