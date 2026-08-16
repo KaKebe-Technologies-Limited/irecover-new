@@ -19,6 +19,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $aid = (int)($_POST['alert_id'] ?? 0);
         if ($aid > 0) approveMatchByAdmin($conn, $aid, $userId);
     }
+    // Super admin can also approve on the station's behalf (step 2 of 2),
+    // e.g. when a station is unreachable or slow to confirm.
+    if (isset($_POST['approve_match_station']) && $isSuperAdmin) {
+        $aid = (int)($_POST['alert_id'] ?? 0);
+        if ($aid > 0) {
+            $stmt = $conn->prepare("SELECT station FROM match_alerts WHERE id=?");
+            $stmt->bind_param('i', $aid);
+            $stmt->execute();
+            $station = $stmt->get_result()->fetch_assoc()['station'] ?? null;
+            $stmt->close();
+            if ($station) approveMatchByStation($conn, $aid, $station);
+        }
+    }
     // Confirm payment AND unlock the owner's PDF receipt in one step
     if (isset($_POST['confirm_payment'])) {
         $pid = (int)$_POST['payment_id'];
@@ -340,6 +353,9 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 $aid = (int)$r['id'];
                 if (!$adminApproved) {
                   echo "<form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='approve_match_admin' class='btn btn-primary btn-sm mb-1'><i class='bi bi-shield-check'></i> Approve Match</button></form> ";
+                }
+                if ($isSuperAdmin && !$stationApproved) {
+                  echo "<form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='approve_match_station' class='btn btn-outline btn-sm mb-1'><i class='bi bi-building-check'></i> Approve for Station</button></form> ";
                 }
                 if ($r['pay_id'] && $r['pay_status'] === 'initiated') {
                   echo "<form method='POST' class='d-inline'><input type='hidden' name='payment_id' value='{$r['pay_id']}'><button type='submit' name='confirm_payment' class='btn btn-success btn-sm mb-1'><i class='bi bi-check2'></i> Confirm Pay</button></form> ";
