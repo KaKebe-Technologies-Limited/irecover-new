@@ -11,6 +11,7 @@ $rs = $conn->prepare("SELECT role FROM admins WHERE user_name=? LIMIT 1");
 $rs->bind_param('s', $userId); $rs->execute();
 $role = $rs->get_result()->fetch_assoc()['role'] ?? 'admin'; $rs->close();
 $isSuperAdmin = ($role === 'super_admin');
+$isAdminOrAbove = in_array($role, ['super_admin', 'admin'], true);
 
 // ── POST handlers ─────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -84,8 +85,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->query("UPDATE notifications SET is_read=1 WHERE target_role IN ('admin','all')");
         exit();
     }
-    // Fee + commission settings (super admin only)
-    if (isset($_POST['update_fees']) && $isSuperAdmin) {
+    // Fee + commission settings (admin and super admin)
+    if (isset($_POST['update_fees']) && $isAdminOrAbove) {
         $types = $_POST['doc_type'] ?? [];
         $fees  = $_POST['fee_ugx'] ?? [];
         $comms = $_POST['commission_percent'] ?? [];
@@ -158,7 +159,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
         <button class="sidebar-link" onclick="switchTab(this,'tFound')"><i class="bi bi-cloud-upload"></i> Found</button>
         <button class="sidebar-link" onclick="switchTab(this,'tReported')"><i class="bi bi-flag"></i> Reported</button>
         <button class="sidebar-link" onclick="switchTab(this,'tRevenue')"><i class="bi bi-graph-up-arrow"></i> Revenue</button>
-        <?php if ($isSuperAdmin): ?><button class="sidebar-link" onclick="switchTab(this,'tFees')"><i class="bi bi-tags"></i> Fee Settings</button><?php endif; ?>
+        <?php if ($isAdminOrAbove): ?><button class="sidebar-link" onclick="switchTab(this,'tFees')"><i class="bi bi-tags"></i> Fee Settings</button><?php endif; ?>
         <?php if ($isSuperAdmin): ?><button class="sidebar-link" onclick="switchTab(this,'tNotifs')"><i class="bi bi-bell"></i> Notifications</button><?php endif; ?>
       </nav>
       <div class="sidebar-foot">
@@ -604,15 +605,16 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
       </div>
     </div>
 
-    <?php if ($isSuperAdmin): ?>
+    <?php if ($isAdminOrAbove): ?>
     <div id="tFees" class="tcard" style="display:none;">
       <div class="p-4">
         <p style="color:var(--muted);font-size:.85rem;margin-bottom:1.25rem;">
-          Set the recovery fee charged to owners and the commission percentage paid out to the holding station for each document type. Stations only ever see their commission amount, never the full fee.
+          Set the recovery fee charged to owners and the commission percentage paid out to the holding station for each document type.
+          The <em>Station Gets</em> column updates live as you type.
         </p>
         <form method="POST">
           <div class="table-responsive">
-            <table class="dt">
+            <table class="dt" id="feeTable">
               <thead><tr><th>Document Type</th><th>Fee (UGX)</th><th>Station Commission (%)</th><th>Station Gets</th></tr></thead>
               <tbody>
               <?php
@@ -626,15 +628,18 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                     <span class="bd bd-blue"><?= htmlspecialchars(ucwords(str_replace('_',' ',$f['doc_type']))) ?></span>
                     <input type="hidden" name="doc_type[]" value="<?= htmlspecialchars($f['doc_type']) ?>">
                   </td>
-                  <td><input type="number" step="500" min="0" name="fee_ugx[]" class="fc" style="max-width:140px;" value="<?= (int)$f['fee_ugx'] ?>"></td>
-                  <td><input type="number" step="1" min="0" max="100" name="commission_percent[]" class="fc" style="max-width:100px;" value="<?= rtrim(rtrim(number_format($f['commission_percent'],2,'.',''),'0'),'.') ?>"></td>
-                  <td class="fee-example" style="color:var(--muted);font-size:.85rem;">UGX <?= $example ?></td>
+                  <td><input type="number" step="500" min="0" name="fee_ugx[]" class="fc fee-input" style="max-width:140px;" value="<?= (int)$f['fee_ugx'] ?>" oninput="recalcRow(this)"></td>
+                  <td><input type="number" step="1" min="0" max="100" name="commission_percent[]" class="fc comm-input" style="max-width:100px;" value="<?= rtrim(rtrim(number_format($f['commission_percent'],2,'.',''),'0'),'.') ?>" oninput="recalcRow(this)"></td>
+                  <td class="fee-example" style="color:var(--muted);font-size:.85rem;font-weight:600;">UGX <?= $example ?></td>
                 </tr>
               <?php $i++; endwhile; ?>
               </tbody>
             </table>
           </div>
-          <button type="submit" name="update_fees" class="btn btn-primary mt-3"><i class="bi bi-check2"></i> Save Fee Settings</button>
+          <div style="display:flex;align-items:center;gap:1rem;margin-top:1rem;flex-wrap:wrap;">
+            <button type="submit" name="update_fees" class="btn btn-primary"><i class="bi bi-check2"></i> Save Fee Settings</button>
+            <small style="color:var(--muted);">Changes take effect immediately for all new payments.</small>
+          </div>
         </form>
       </div>
     </div>
@@ -842,6 +847,14 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
           }
         };
       });
+    }
+    // Live fee preview — recalculate "Station Gets" column as user types
+    function recalcRow(input) {
+      const row = input.closest('tr');
+      const fee  = parseFloat(row.querySelector('.fee-input').value)  || 0;
+      const comm = parseFloat(row.querySelector('.comm-input').value) || 0;
+      const gets = Math.round(fee * comm / 100);
+      row.querySelector('.fee-example').textContent = 'UGX ' + gets.toLocaleString();
     }
   </script>
 </body>

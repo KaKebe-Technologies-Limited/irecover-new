@@ -431,13 +431,21 @@ function applyPaymentStatus(mysqli $conn, int $paymentId, array $iotec): array {
         $commission = round((float)$pay['amount'] * ($feeInfo['commission_percent'] / 100), 2);
         $vcode = $pay['verification_code'] ?: generateVerificationCode($conn);
 
+        // Map IOTec vendor string → our provider enum (MTN|Airtel|other)
+        $providerVal = match(strtolower((string)$vendor)) {
+            'mtn'    => 'MTN',
+            'airtel' => 'Airtel',
+            default  => 'other',
+        };
+        // Store the raw IOTec status string for auditability
+        $rawIotecStatus = $iotecStatus; // 'Success'
+
         $upd = $conn->prepare(
             "UPDATE payments SET status='confirmed', confirmed_at=NOW(), download_allowed=1,
                     iotec_status=?, provider=?, station_commission=?, verification_code=?, callback_payload=?
              WHERE id=?"
         );
-        $providerVal = $vendor === 'Mtn' ? 'MTN' : ($vendor === 'Airtel' ? 'Airtel' : 'other');
-        $upd->bind_param('ssdssi', $iotecStatus, $providerVal, $commission, $vcode, $payloadJson, $paymentId);
+        $upd->bind_param('ssdssi', $rawIotecStatus, $providerVal, $commission, $vcode, $payloadJson, $paymentId);
         $upd->execute();
         $upd->close();
 
@@ -460,6 +468,10 @@ function applyPaymentStatus(mysqli $conn, int $paymentId, array $iotec): array {
         $upd->bind_param('ssi', $iotecStatus, $payloadJson, $paymentId);
         $upd->execute();
         $upd->close();
+        // Revert match alert to payment_pending so the owner can try again
+        if (!empty($pay['match_alert_id'])) {
+            $conn->query("UPDATE match_alerts SET alert_status='payment_pending', updated_at=NOW() WHERE id=" . (int)$pay['match_alert_id']);
+        }
         return ['status' => 'failed', 'message' => 'Payment was not completed. You can try again.'];
     }
 

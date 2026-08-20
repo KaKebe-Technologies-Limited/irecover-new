@@ -16,6 +16,7 @@ function formatUgPhone(?string $n): string {
 $id_number = trim(strtoupper($_GET['id_number'] ?? $_POST['id_number'] ?? ''));
 $stage     = null; // 'awaiting_admin' | 'awaiting_station' | 'ready_to_pay' | 'payment_in_progress' | 'ready_for_pickup' | 'collected' | 'found_unlinked' | 'not_found'
 $info      = [];
+$fee_display = 0; // fee shown on ready_to_pay stage
 $DEFAULT_CONTACT = '0777676206';
 
 if ($id_number !== '') {
@@ -46,6 +47,9 @@ if ($id_number !== '') {
             $stage = 'payment_in_progress';
         } elseif ((int)$row['admin_approved'] === 1 && (int)$row['station_approved'] === 1) {
             $stage = 'ready_to_pay';
+            // Look up the fee so we can show it before the owner clicks Pay
+            $feeInfo     = getFeeConfig($conn, $row['doc_type']);
+            $fee_display = $feeInfo['fee_ugx'];
         } elseif ((int)$row['admin_approved'] === 1) {
             $stage = 'awaiting_station';
         } else {
@@ -186,9 +190,19 @@ if ($id_number !== '') {
             <div class="stage-box stage-teal">
                 <i class="bi bi-check-circle stage-icon"></i>
                 <h3>Approved — Ready to Pay</h3>
-                <p>Your match has been fully verified. Pay the recovery fee to unlock your pickup code.</p>
+                <p>Your match has been fully verified. Pay the recovery fee to unlock your pickup code and collect your document.</p>
+                <?php if ($fee_display > 0): ?>
+                <div style="margin-top:.85rem;background:#fff;border:1.5px solid #99f6e4;border-radius:.75rem;padding:.75rem 1.1rem;display:inline-block;">
+                    <span style="font-size:1.35rem;font-weight:700;color:#0f766e;">UGX <?= number_format($fee_display) ?></span>
+                    <span style="font-size:.8rem;color:#64748b;margin-left:.5rem;"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $info['doc_type'] ?? ''))) ?> recovery fee</span>
+                </div>
+                <?php endif; ?>
             </div>
-            <div class="text-center mt-3"><a href="pay.php?id_number=<?= urlencode($id_number) ?>" class="btn btn-danger">Pay Now</a></div>
+            <div class="text-center mt-3">
+                <a href="pay.php?id_number=<?= urlencode($id_number) ?>" class="btn btn-danger px-4">
+                    <i class="bi bi-phone me-1"></i> Pay Now<?= $fee_display > 0 ? ' — UGX ' . number_format($fee_display) : '' ?>
+                </a>
+            </div>
 
         <?php elseif ($stage === 'payment_in_progress'): ?>
             <div class="stage-box stage-blue">

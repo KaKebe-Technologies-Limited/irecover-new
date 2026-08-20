@@ -51,12 +51,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['payer_name'])) {
     } elseif (empty($payer_name) || strlen($payer_phone) < 9 || strlen($payer_phone) > 13) {
         $error = 'Please enter your full name and a valid Mobile Money phone number.';
     } else {
+        // Detect MTN vs Airtel from the Ugandan number prefix
+        // MTN prefixes: 077, 078, 076, 039; Airtel prefixes: 075, 070, 074
+        $providerGuess = 'other';
+        $phonePrefix   = substr($payer_phone, 0, 3);
+        // Normalize: if number starts with 256, strip it first
+        $normPhone = $payer_phone;
+        if (str_starts_with($normPhone, '256')) {
+            $normPhone   = '0' . substr($normPhone, 3);
+            $phonePrefix = substr($normPhone, 0, 3);
+        }
+        if (in_array($phonePrefix, ['077','078','076','039'], true)) {
+            $providerGuess = 'MTN';
+        } elseif (in_array($phonePrefix, ['075','070','074'], true)) {
+            $providerGuess = 'Airtel';
+        }
+
         $ps = $conn->prepare(
             "INSERT INTO payments
              (match_alert_id, document_id, payer_name, payer_phone, id_number, amount, payment_method, provider, status, initiated_at)
-             VALUES (?,?,?,?,?,?,'mobile_money','other','initiated',NOW())"
+             VALUES (?,?,?,?,?,?,'mobile_money',?,'initiated',NOW())"
         );
-        $ps->bind_param('iisssd', $match['alert_id'], $match['document_id'], $payer_name, $payer_phone, $id_number, $fee);
+        $ps->bind_param('iisssds', $match['alert_id'], $match['document_id'], $payer_name, $payer_phone, $id_number, $fee, $providerGuess);
         $ps->execute();
         $payment_id = $conn->insert_id;
         $ps->close();
