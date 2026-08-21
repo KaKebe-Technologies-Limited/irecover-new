@@ -253,10 +253,11 @@ if (isset($_SESSION['station_user'])) {
             </div>
 
             <!-- Service selector -->
-            <div class="svc-select-wrap" data-accent="found">
-                <i class="bi bi-cloud-upload svc-select-icon"></i>
+            <div class="svc-select-wrap">
+                <i class="bi bi-list-check svc-select-icon"></i>
                 <select id="svcSelect" class="svc-select-tabs" onchange="switchSvcBySelect(this)" aria-label="Choose a service">
-                    <option value="svcFound" selected>Upload Found Document</option>
+                    <option value="" selected disabled>Select a service</option>
+                    <option value="svcFound">Upload Found Document</option>
                     <option value="svcLost">Report Lost Document</option>
                     <option value="svcSearch">Search for Document</option>
                 </select>
@@ -264,7 +265,7 @@ if (isset($_SESSION['station_user'])) {
             </div>
 
             <!-- ── Tab: Upload Found ──────────────────────── -->
-            <div id="svcFound" class="svc-panel" style="display:block;">
+            <div id="svcFound" class="svc-panel" style="display:none;">
                 <div class="svc-card">
                     <div class="svc-card-banner svc-banner-found">
                         <i class="bi bi-cloud-upload"></i>
@@ -463,6 +464,7 @@ if (isset($_SESSION['station_user'])) {
     };
     function switchSvcBySelect(sel) {
         var panelId = sel.value;
+        if (!panelId) return;
         document.querySelectorAll('.svc-panel').forEach(function (p) { p.style.display = 'none'; });
         var el = document.getElementById(panelId);
         el.style.display = 'block';
