@@ -55,6 +55,10 @@
 @keyframes tfShake { 10%,90%{transform:translateX(-1px);} 20%,80%{transform:translateX(2px);} 30%,50%,70%{transform:translateX(-4px);} 40%,60%{transform:translateX(4px);} }
 .tf-step.tf-shake { animation: tfShake .4s ease; }
 
+.tf-intro { display:flex; flex-direction:column; align-items:flex-start; gap:1.1rem; width:100%; animation: tfStepIn .35s ease; }
+.tf-intro-sub { color:var(--muted); font-size:1.05rem; margin:0; max-width:420px; }
+.tf-start-btn { padding:.75rem 1.75rem; font-size:1rem; }
+
 .tf-qnum { color:var(--tf-accent); font-weight:700; font-size:.95rem; margin-right:.4rem; display:inline-flex; align-items:center; gap:.25rem; }
 .tf-q { font-size:clamp(1.2rem,2.4vw,1.55rem); font-weight:600; color:var(--text); line-height:1.35; margin-bottom:1.5rem; }
 .tf-q .req { color:var(--tf-accent); font-weight:700; }

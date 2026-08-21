@@ -594,6 +594,7 @@ if (isset($_SESSION['station_user'])) {
     function initWizard(formType) {
         WIZ[formType] = {
             formType: formType,
+            started: false,
             steps: [ fs('doc_type', DOCTYPE_Q[formType], 'choice', {options: DOC_TYPE_OPTIONS}) ],
             index: 0,
             values: {},
@@ -601,7 +602,26 @@ if (isset($_SESSION['station_user'])) {
             bar:   document.getElementById('tfBar' + formType),
             form:  document.getElementById('form' + formType)
         };
-        renderStep(WIZ[formType]);
+        renderIntro(WIZ[formType]);
+    }
+
+    // Nothing is active/filled-in until the user deliberately clicks Start —
+    // keeps the panel clean instead of dumping a live question on them.
+    function renderIntro(w) {
+        w.bar.style.width = '0%';
+        w.stage.innerHTML =
+            '<div class="tf-intro">' +
+                '<p class="tf-intro-sub">Tap start when you’re ready — one quick question at a time.</p>' +
+                '<button type="button" class="tf-ok-btn tf-start-btn"><i class="bi bi-play-fill"></i> Start</button>' +
+            '</div>';
+        w.stage.querySelector('.tf-start-btn').addEventListener('click', function () { startWizard(w); });
+        var wizardEl = w.stage.closest('.tf-wizard');
+        wizardEl.querySelector('[data-nav="up"]').disabled = true;
+    }
+
+    function startWizard(w) {
+        w.started = true;
+        renderStep(w);
     }
 
     function escAttr(v) { return String(v == null ? '' : v).replace(/"/g, '&quot;'); }
@@ -722,6 +742,7 @@ if (isset($_SESSION['station_user'])) {
     }
 
     function attemptNext(w) {
+        if (!w.started) { startWizard(w); return; }
         if (!validateStep(w)) { showStepError(w); return; }
         goNext(w);
     }
