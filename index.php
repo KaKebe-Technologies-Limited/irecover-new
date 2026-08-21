@@ -86,6 +86,7 @@ if (isset($_SESSION['station_user'])) {
     <link rel="stylesheet" href="assets/css/variables.css?v=<?= @filemtime(__DIR__.'/assets/css/variables.css') ?>">
     <link rel="stylesheet" href="assets/css/base.css?v=<?= @filemtime(__DIR__.'/assets/css/base.css') ?>">
     <link rel="stylesheet" href="assets/css/home.css?v=<?= @filemtime(__DIR__.'/assets/css/home.css') ?>">
+    <link rel="stylesheet" href="assets/css/wizard.css?v=<?= @filemtime(__DIR__.'/assets/css/wizard.css') ?>">
 </head>
 <body>
 
@@ -251,23 +252,15 @@ if (isset($_SESSION['station_user'])) {
                 </p>
             </div>
 
-            <!-- Service tab bar -->
-            <div class="svc-tabs" role="tablist">
-                <button class="svc-tab active" onclick="switchSvc(this,'svcFound')" role="tab" aria-selected="true">
-                    <i class="bi bi-cloud-upload"></i>
-                    <span class="svc-tab-full">Upload Found Document</span>
-                    <span class="svc-tab-short">Upload</span>
-                </button>
-                <button class="svc-tab" onclick="switchSvc(this,'svcLost')" role="tab" aria-selected="false">
-                    <i class="bi bi-flag"></i>
-                    <span class="svc-tab-full">Report Lost Document</span>
-                    <span class="svc-tab-short">Report</span>
-                </button>
-                <button class="svc-tab" onclick="switchSvc(this,'svcSearch')" role="tab" aria-selected="false">
-                    <i class="bi bi-search"></i>
-                    <span class="svc-tab-full">Search for Document</span>
-                    <span class="svc-tab-short">Search</span>
-                </button>
+            <!-- Service selector -->
+            <div class="svc-select-wrap" data-accent="found">
+                <i class="bi bi-cloud-upload svc-select-icon"></i>
+                <select id="svcSelect" class="svc-select-tabs" onchange="switchSvcBySelect(this)" aria-label="Choose a service">
+                    <option value="svcFound" selected>Upload Found Document</option>
+                    <option value="svcLost">Report Lost Document</option>
+                    <option value="svcSearch">Search for Document</option>
+                </select>
+                <i class="bi bi-chevron-down svc-select-caret"></i>
             </div>
 
             <!-- ── Tab: Upload Found ──────────────────────── -->
@@ -277,69 +270,21 @@ if (isset($_SESSION['station_user'])) {
                         <i class="bi bi-cloud-upload"></i>
                         <div>
                             <div class="svc-banner-title">Upload a Found Document</div>
-                            <div class="svc-banner-sub">Found someone's document? Fill in the details and upload photos so the owner can claim it.</div>
+                            <div class="svc-banner-sub">Found someone's document? Answer a few quick questions and upload photos so the owner can claim it.</div>
                         </div>
                     </div>
-                    <div class="svc-card-body">
-                        <form action="submit_id.php" method="POST" enctype="multipart/form-data" id="formFound">
+                    <div class="svc-card-body tf-card-body">
+                        <form action="submit_id.php" method="POST" enctype="multipart/form-data" id="formFound" class="tf-form" novalidate>
                             <input type="hidden" name="reporter" value="<?= htmlspecialchars($userId) ?>">
-
-                            <!-- Step 1 — Select type -->
-                            <div class="svc-step">
-                                <div class="svc-step-num">1</div>
-                                <div class="svc-step-content">
-                                    <div class="svc-step-label">Select Document Type</div>
-                                    <select id="docTypeFound" name="doc_type" class="svc-select" required onchange="updateSvcFields(this,'Found')">
-                                        <option value="" selected disabled>Choose document type&hellip;</option>
-                                        <option value="national_id">National ID</option>
-                                        <option value="driving_permit">Driving Permit</option>
-                                        <option value="passport">Passport</option>
-                                        <option value="student_id">Student ID</option>
-                                        <option value="academic_document">Academic Document</option>
-                                        <option value="land_title">Land Title</option>
-                                        <option value="birth_certificate">Birth Certificate</option>
-                                        <option value="other">Other Document</option>
-                                    </select>
+                            <div class="tf-collected" hidden></div>
+                            <div class="tf-wizard" data-accent="found" data-form="Found">
+                                <div class="tf-progress"><div class="tf-progress-bar" id="tfBarFound"></div></div>
+                                <div class="tf-stage" id="tfStageFound"></div>
+                                <div class="tf-nav">
+                                    <button type="button" class="tf-nav-btn" data-nav="up" aria-label="Previous question"><i class="bi bi-chevron-up"></i></button>
+                                    <button type="button" class="tf-nav-btn" data-nav="down" aria-label="Next question"><i class="bi bi-chevron-down"></i></button>
                                 </div>
                             </div>
-
-                            <!-- Step 2 — Dynamic fields -->
-                            <div id="svcFieldsFound" class="svc-fields-wrap" style="display:none;">
-                                <div class="svc-step">
-                                    <div class="svc-step-num">2</div>
-                                    <div class="svc-step-content">
-                                        <div class="svc-step-label">Document Owner Details</div>
-                                        <div class="svc-fields-grid" id="dynamicFieldsFound"></div>
-                                    </div>
-                                </div>
-
-                                <!-- Step 3 — Photos -->
-                                <div class="svc-step">
-                                    <div class="svc-step-num">3</div>
-                                    <div class="svc-step-content">
-                                        <div class="svc-step-label">Upload Document Photos</div>
-                                        <div class="svc-fields-grid">
-                                            <div class="svc-field">
-                                                <label class="svc-label">Front Side <span class="req">*</span></label>
-                                                <input type="file" name="front_img" class="svc-input" accept="image/*" required>
-                                                <small class="svc-hint">Clear photo of the front</small>
-                                            </div>
-                                            <div class="svc-field">
-                                                <label class="svc-label">Back Side <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
-                                                <input type="file" name="back_img" class="svc-input" accept="image/*">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Submit -->
-                                <div class="svc-submit-row">
-                                    <button type="submit" class="svc-btn svc-btn-found">
-                                        <i class="bi bi-cloud-upload"></i> Submit Found Document
-                                    </button>
-                                </div>
-                            </div>
-
                         </form>
                     </div>
                 </div>
@@ -352,70 +297,19 @@ if (isset($_SESSION['station_user'])) {
                         <i class="bi bi-flag"></i>
                         <div>
                             <div class="svc-banner-title">Report a Lost Document</div>
-                            <div class="svc-banner-sub">Lost your document? File a report with a police letter so we can match it when it's found.</div>
+                            <div class="svc-banner-sub">Lost your document? Answer a few quick questions and attach a police letter so we can match it when it's found.</div>
                         </div>
                     </div>
-                    <div class="svc-card-body">
-                        <form action="report.php" method="POST" enctype="multipart/form-data" id="formLost">
+                    <div class="svc-card-body tf-card-body">
+                        <form action="report.php" method="POST" enctype="multipart/form-data" id="formLost" class="tf-form" novalidate>
                             <input type="hidden" name="reporter" value="<?= htmlspecialchars($userId) ?>">
-
-                            <div class="svc-step">
-                                <div class="svc-step-num">1</div>
-                                <div class="svc-step-content">
-                                    <div class="svc-step-label">Select Document Type</div>
-                                    <select id="docTypeLost" name="doc_type" class="svc-select" required onchange="updateSvcFields(this,'Lost')">
-                                        <option value="" selected disabled>Choose document type&hellip;</option>
-                                        <option value="national_id">National ID</option>
-                                        <option value="driving_permit">Driving Permit</option>
-                                        <option value="passport">Passport</option>
-                                        <option value="student_id">Student ID</option>
-                                        <option value="academic_document">Academic Document</option>
-                                        <option value="land_title">Land Title</option>
-                                        <option value="birth_certificate">Birth Certificate</option>
-                                        <option value="other">Other Document</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div id="svcFieldsLost" class="svc-fields-wrap" style="display:none;">
-                                <div class="svc-step">
-                                    <div class="svc-step-num">2</div>
-                                    <div class="svc-step-content">
-                                        <div class="svc-step-label">Document Details</div>
-                                        <div class="svc-fields-grid" id="dynamicFieldsLost"></div>
-                                    </div>
-                                </div>
-
-                                <div class="svc-step">
-                                    <div class="svc-step-num">3</div>
-                                    <div class="svc-step-content">
-                                        <div class="svc-step-label">Your Contact Details</div>
-                                        <div class="svc-fields-grid">
-                                            <div class="svc-field">
-                                                <label class="svc-label">Your Full Name <span class="req">*</span></label>
-                                                <input type="text" name="reporter_name" class="svc-input" placeholder="Enter your name" required>
-                                            </div>
-                                            <div class="svc-field">
-                                                <label class="svc-label">Your Phone <span class="req">*</span></label>
-                                                <input type="tel" name="reporter_phone" class="svc-input" placeholder="07XXXXXXXX" required>
-                                            </div>
-                                            <div class="svc-field">
-                                                <label class="svc-label">Your Email <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
-                                                <input type="email" name="reporter_email" class="svc-input" placeholder="you@example.com">
-                                            </div>
-                                            <div class="svc-field">
-                                                <label class="svc-label">Police Letter / OB Number <span class="req">*</span></label>
-                                                <input type="file" name="police_letter" class="svc-input" accept="image/*,.pdf" required>
-                                                <small class="svc-hint">Upload a photo of the police OB slip</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="svc-submit-row">
-                                    <button type="submit" class="svc-btn svc-btn-lost">
-                                        <i class="bi bi-flag"></i> Submit Lost Report
-                                    </button>
+                            <div class="tf-collected" hidden></div>
+                            <div class="tf-wizard" data-accent="lost" data-form="Lost">
+                                <div class="tf-progress"><div class="tf-progress-bar" id="tfBarLost"></div></div>
+                                <div class="tf-stage" id="tfStageLost"></div>
+                                <div class="tf-nav">
+                                    <button type="button" class="tf-nav-btn" data-nav="up" aria-label="Previous question"><i class="bi bi-chevron-up"></i></button>
+                                    <button type="button" class="tf-nav-btn" data-nav="down" aria-label="Next question"><i class="bi bi-chevron-down"></i></button>
                                 </div>
                             </div>
                         </form>
@@ -430,63 +324,26 @@ if (isset($_SESSION['station_user'])) {
                         <i class="bi bi-search"></i>
                         <div>
                             <div class="svc-banner-title">Search for Your Document</div>
-                            <div class="svc-banner-sub">Enter your details to check if your document has been found and uploaded by a partner station.</div>
+                            <div class="svc-banner-sub">Answer a few quick questions to check if your document has been found and uploaded by a partner station.</div>
                         </div>
                     </div>
-                    <div class="svc-card-body">
-                        <form action="search_id.php" method="POST" id="formSearch">
-
-                            <div class="svc-step">
-                                <div class="svc-step-num">1</div>
-                                <div class="svc-step-content">
-                                    <div class="svc-step-label">Select Document Type</div>
-                                    <select id="docTypeSearch" name="doc_type" class="svc-select" required onchange="updateSvcFields(this,'Search')">
-                                        <option value="" selected disabled>Choose document type&hellip;</option>
-                                        <option value="national_id">National ID</option>
-                                        <option value="driving_permit">Driving Permit</option>
-                                        <option value="passport">Passport</option>
-                                        <option value="student_id">Student ID</option>
-                                        <option value="academic_document">Academic Document</option>
-                                        <option value="land_title">Land Title</option>
-                                        <option value="birth_certificate">Birth Certificate</option>
-                                        <option value="other">Other Document</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div id="svcFieldsSearch" class="svc-fields-wrap" style="display:none;">
-                                <div class="svc-step">
-                                    <div class="svc-step-num">2</div>
-                                    <div class="svc-step-content">
-                                        <div class="svc-step-label">Enter Search Details</div>
-                                        <p class="svc-hint mb-2">Search by ID / NIN number <strong>or</strong> your name + date of birth.</p>
-                                        <div class="svc-fields-grid" id="dynamicFieldsSearch"></div>
-                                    </div>
-                                </div>
-
-                                <div class="svc-step">
-                                    <div class="svc-step-num">3</div>
-                                    <div class="svc-step-content">
-                                        <div class="svc-step-label">Your Contact <span style="color:var(--muted);font-weight:400;">(optional — helps us reach you)</span></div>
-                                        <div class="svc-fields-grid">
-                                            <div class="svc-field">
-                                                <label class="svc-label">Your Phone Number</label>
-                                                <input type="tel" name="searcher_phone" class="svc-input" placeholder="07XXXXXXXX">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="svc-submit-row">
-                                    <button type="submit" class="svc-btn svc-btn-search">
-                                        <i class="bi bi-search"></i> Search Documents
-                                    </button>
-                                    <a href="get_receipt.php" class="svc-btn-secondary">
-                                        <i class="bi bi-file-earmark-pdf"></i> Already paid? Download Receipt
-                                    </a>
+                    <div class="svc-card-body tf-card-body">
+                        <form action="search_id.php" method="POST" id="formSearch" class="tf-form" novalidate>
+                            <div class="tf-collected" hidden></div>
+                            <div class="tf-wizard" data-accent="search" data-form="Search">
+                                <div class="tf-progress"><div class="tf-progress-bar" id="tfBarSearch"></div></div>
+                                <div class="tf-stage" id="tfStageSearch"></div>
+                                <div class="tf-nav">
+                                    <button type="button" class="tf-nav-btn" data-nav="up" aria-label="Previous question"><i class="bi bi-chevron-up"></i></button>
+                                    <button type="button" class="tf-nav-btn" data-nav="down" aria-label="Next question"><i class="bi bi-chevron-down"></i></button>
                                 </div>
                             </div>
                         </form>
+                        <div class="text-center mt-3">
+                            <a href="get_receipt.php" class="svc-btn-secondary">
+                                <i class="bi bi-file-earmark-pdf"></i> Already paid? Download Receipt
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -573,201 +430,6 @@ if (isset($_SESSION['station_user'])) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-    document.addEventListener('DOMContentLoaded', function () {
-
-        // ── Initialise the three forms ──────────────────────────────────────
-        ['Found', 'Lost', 'Search'].forEach(function (formType) {
-            const sel = document.getElementById('docType' + formType);
-            if (sel) {
-                if (sel.value) updateFormFields(sel, formType);
-                sel.addEventListener('change', function () {
-                    updateFormFields(this, formType);
-                });
-            }
-        });
-
-        // ── Master dispatcher ───────────────────────────────────────────────
-        function updateFormFields(selectEl, formType) {
-            const docType  = selectEl.value;
-            const dynWrap  = document.getElementById('dynamicFields' + formType);
-            dynWrap.innerHTML = '';
-
-            if (!docType) {
-                // Hide contextual extras when nothing is selected
-                if (formType === 'Lost')   { document.getElementById('reporterFieldsLost').style.display   = 'none'; }
-                if (formType === 'Search') { document.getElementById('searcherPhoneWrap').style.display    = 'none'; }
-                return;
-            }
-
-            const builders = {
-                national_id:       buildNationalID,
-                driving_permit:    buildDrivingPermit,
-                passport:          buildPassport,
-                student_id:        buildStudentID,
-                academic_document: buildAcademicDocument,
-                land_title:        buildLandTitle,
-                birth_certificate: buildBirthCertificate,
-                other:             buildOther,
-            };
-
-            if (builders[docType]) builders[docType](dynWrap, formType);
-
-            // Append file upload + submit for Found/Lost; plain submit for Search
-            if (formType === 'Search') {
-                addSearchSubmit(dynWrap);
-                document.getElementById('searcherPhoneWrap').style.display = 'block';
-            } else {
-                addFileUploadAndSubmit(dynWrap, formType);
-                if (formType === 'Lost') {
-                    document.getElementById('reporterFieldsLost').style.display = 'block';
-                }
-            }
-        }
-
-        // ── Shared helper: build one labelled text/date/select input ────────
-        function field(name, label, type, attrs) {
-            attrs = attrs || '';
-            if (type === 'date') {
-                return `<div class="mb-3"><label class="form-label">${label}</label><input type="date" name="${name}" class="form-control" required ${attrs}></div>`;
-            }
-            if (type === 'number') {
-                return `<div class="mb-3"><label class="form-label">${label}</label><input type="number" name="${name}" class="form-control" required ${attrs}></div>`;
-            }
-            if (type === 'gender') {
-                return `<div class="mb-3"><label class="form-label">${label}</label><select name="${name}" class="form-select" required><option value="" selected disabled>Select gender</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></div>`;
-            }
-            return `<div class="mb-3"><label class="form-label">${label}</label><input type="text" name="${name}" class="form-control" required ${attrs}></div>`;
-        }
-
-        // ── national_id ─────────────────────────────────────────────────────
-        function buildNationalID(c) {
-            c.insertAdjacentHTML('beforeend',
-                field('surName',  'Surname',     'text') +
-                field('givenName','Given Name',  'text') +
-                field('dob',      'Date of Birth','date') +
-                field('id_number','NIN Number',  'text', 'placeholder="CM…"') +
-                field('gender',   'Gender',      'gender')
-            );
-        }
-
-        // ── driving_permit ──────────────────────────────────────────────────
-        function buildDrivingPermit(c) {
-            c.insertAdjacentHTML('beforeend',
-                field('surName',  'Surname',       'text') +
-                field('givenName','Given Name',    'text') +
-                field('dob',      'Date of Birth', 'date') +
-                field('id_number','Permit Number', 'text') +
-                field('extra1',   'NIN Number',    'text', 'placeholder="CM…"')
-            );
-        }
-
-        // ── passport ────────────────────────────────────────────────────────
-        function buildPassport(c) {
-            c.insertAdjacentHTML('beforeend',
-                field('surName',  'Surname',         'text') +
-                field('givenName','Given Name',      'text') +
-                field('dob',      'Date of Birth',   'date') +
-                field('id_number','Passport Number', 'text') +
-                field('extra1',   'Nationality',     'text')
-            );
-        }
-
-        // ── student_id ──────────────────────────────────────────────────────
-        function buildStudentID(c) {
-            c.insertAdjacentHTML('beforeend',
-                field('surName',  'Surname',              'text') +
-                field('givenName','Given Name',           'text') +
-                field('id_number','Student / Reg Number', 'text') +
-                field('extra1',   'Course',               'text') +
-                field('dob',      'Date Issued',          'date') +
-                field('extra2',   'School / Institution', 'text')
-            );
-        }
-
-        // ── academic_document ───────────────────────────────────────────────
-        function buildAcademicDocument(c) {
-            c.insertAdjacentHTML('beforeend',
-                field('surName',  'Surname',            'text') +
-                field('givenName','Given Name',         'text') +
-                field('id_number','Certificate Number', 'text') +
-                field('extra1',   'Institution',        'text') +
-                field('extra2',   'Course Title',       'text') +
-                field('extra3',   'Graduation Year',    'number', 'min="1900" max="2099"')
-            );
-        }
-
-        // ── land_title ──────────────────────────────────────────────────────
-        function buildLandTitle(c) {
-            c.insertAdjacentHTML('beforeend',
-                field('surName',  'Surname',           'text') +
-                field('givenName','Given Name',        'text') +
-                field('id_number','Plot / Title Number','text') +
-                field('extra1',   'District',          'text') +
-                field('extra2',   'Land Reference',    'text')
-            );
-        }
-
-        // ── birth_certificate ───────────────────────────────────────────────
-        function buildBirthCertificate(c) {
-            c.insertAdjacentHTML('beforeend',
-                field('surName',  'Surname',                          'text') +
-                field('givenName','Given Name',                       'text') +
-                field('dob',      'Date of Birth',                    'date') +
-                field('id_number','Certificate Registration Number',  'text') +
-                field('extra1',   'District of Birth',                'text')
-            );
-        }
-
-        // ── other ────────────────────────────────────────────────────────────
-        function buildOther(c) {
-            c.insertAdjacentHTML('beforeend',
-                field('surName',  'Surname',                   'text') +
-                field('givenName','Given Name',                'text') +
-                field('id_number','Document Reference Number', 'text') +
-                field('extra1',   'Description',              'text')
-            );
-        }
-
-        // ── File upload + submit (Found / Lost forms) ───────────────────────
-        function addFileUploadAndSubmit(container, formType) {
-            container.insertAdjacentHTML('beforeend', `
-                <div class="mb-3">
-                    <label class="form-label">Front Side of Document</label>
-                    <input type="file" name="front_img" class="form-control" accept="image/*" required>
-                    <small class="text-muted">Clear photo of the front side</small>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Back Side <span class="text-muted">(if applicable)</span></label>
-                    <input type="file" name="back_img" class="form-control" accept="image/*">
-                </div>
-                <div class="d-grid">
-                    <button type="submit" class="btn-submit">
-                        <i class="bi bi-send-fill"></i> Submit
-                    </button>
-                </div>
-            `);
-        }
-
-        // ── Search submit only ───────────────────────────────────────────────
-        function addSearchSubmit(container) {
-            container.insertAdjacentHTML('beforeend', `
-                <div class="d-grid">
-                    <button type="submit" class="btn-submit">
-                        <i class="bi bi-search"></i> Search Documents
-                    </button>
-                </div>
-            `);
-        }
-
-    }); // end DOMContentLoaded
-    </script>
-
-</body>
-</html>
-
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
     /* ── Mobile nav drawer ───────────────────── */
     var burger  = document.getElementById('navBurger');
     var drawer  = document.getElementById('navDrawer');
@@ -793,95 +455,330 @@ if (isset($_SESSION['station_user'])) {
         drawer.classList.contains('open') ? closeDrawer() : openDrawer();
     });
     closeBtn.addEventListener('click', closeDrawer);
-    /* ── Service tab switcher ─────────────────────────── */
-    function switchSvc(btn, panelId) {
-        document.querySelectorAll('.svc-tab').forEach(function(t){ t.classList.remove('active'); });
-        document.querySelectorAll('.svc-panel').forEach(function(p){ p.style.display='none'; });
-        btn.classList.add('active');
+    /* ── Service selector (dropdown) ─────────────────────── */
+    var SVC_META = {
+        svcFound:  { accent: 'found',  icon: 'bi-cloud-upload' },
+        svcLost:   { accent: 'lost',   icon: 'bi-flag' },
+        svcSearch: { accent: 'search', icon: 'bi-search' }
+    };
+    function switchSvcBySelect(sel) {
+        var panelId = sel.value;
+        document.querySelectorAll('.svc-panel').forEach(function (p) { p.style.display = 'none'; });
         var el = document.getElementById(panelId);
         el.style.display = 'block';
         el.style.animation = 'svcFadeIn .35s ease';
+
+        var meta = SVC_META[panelId];
+        var wrap = sel.closest('.svc-select-wrap');
+        wrap.setAttribute('data-accent', meta.accent);
+        wrap.querySelector('.svc-select-icon').className = 'bi ' + meta.icon + ' svc-select-icon';
     }
 
-    /* ── Field builder triggered by each select's onchange ── */
-    function updateSvcFields(sel, formType) {
-        var docType = sel.value;
-        var wrap = document.getElementById('svcFields' + formType);
-        var grid = document.getElementById('dynamicFields' + formType);
-        grid.innerHTML = '';
-        if (!docType) { wrap.style.display = 'none'; return; }
-        var map = {
-            national_id:       buildNID,
-            driving_permit:    buildDP,
-            passport:          buildPP,
-            student_id:        buildSID,
-            academic_document: buildAD,
-            land_title:        buildLT,
-            birth_certificate: buildBC,
-            other:             buildOT
-        };
-        if (map[docType]) map[docType](grid);
-        wrap.style.display = 'block';
+    /* ══════════════════════════════════════════════════════
+       Typeform-style one-question-at-a-time wizard engine
+       Drives the Found / Lost / Search forms in #services.
+    ══════════════════════════════════════════════════════ */
+    function fs(name, q, type, opts) {
+        opts = opts || {};
+        var step = { name: name, q: q, type: type, required: opts.required !== false };
+        for (var k in opts) step[k] = opts[k];
+        return step;
     }
 
-    /* ── Shared field helper ─────────────────────────── */
-    function f(name, label, type, extra) {
-        extra = extra || '';
-        var inp;
-        if (type === 'date') {
-            inp = '<input type="date" name="'+name+'" class="svc-input" required '+extra+'>';
-        } else if (type === 'number') {
-            inp = '<input type="number" name="'+name+'" class="svc-input" required '+extra+'>';
-        } else if (type === 'gender') {
-            inp = '<select name="'+name+'" class="svc-input" required>' +
-                  '<option value="" disabled selected>Select gender</option>' +
-                  '<option value="male">Male</option><option value="female">Female</option>' +
-                  '<option value="other">Other</option></select>';
-        } else {
-            inp = '<input type="text" name="'+name+'" class="svc-input" required '+extra+'>';
+    var DOC_TYPE_OPTIONS = [
+        ['national_id',       'National ID'],
+        ['driving_permit',    'Driving Permit'],
+        ['passport',          'Passport'],
+        ['student_id',        'Student ID'],
+        ['academic_document', 'Academic Document'],
+        ['land_title',        'Land Title'],
+        ['birth_certificate', 'Birth Certificate'],
+        ['other',             'Other Document']
+    ];
+
+    var DOCTYPE_Q = {
+        Found:  'What type of document did you find?',
+        Lost:   'What type of document did you lose?',
+        Search: 'What type of document are you looking for?'
+    };
+
+    var GENDER_OPTIONS = [['male','Male'],['female','Female'],['other','Other']];
+
+    var STEP_DEFS = {
+        national_id: [
+            fs('surName',   "What's the surname on the document?", 'text'),
+            fs('givenName', 'And the given name?', 'text'),
+            fs('dob',       'Date of birth on the document?', 'date'),
+            fs('id_number', "What's the NIN number?", 'text', {placeholder:'CM...'}),
+            fs('gender',    'Gender on the document?', 'choice', {options: GENDER_OPTIONS})
+        ],
+        driving_permit: [
+            fs('surName',   "What's the surname on the permit?", 'text'),
+            fs('givenName', 'And the given name?', 'text'),
+            fs('dob',       'Date of birth on the permit?', 'date'),
+            fs('id_number', "What's the permit number?", 'text'),
+            fs('extra1',    "What's the NIN number on it?", 'text', {placeholder:'CM...'})
+        ],
+        passport: [
+            fs('surName',   "What's the surname on the passport?", 'text'),
+            fs('givenName', 'And the given name?', 'text'),
+            fs('dob',       'Date of birth on the passport?', 'date'),
+            fs('id_number', "What's the passport number?", 'text'),
+            fs('extra1',    'What nationality is shown?', 'text')
+        ],
+        student_id: [
+            fs('surName',   "What's the surname on the ID?", 'text'),
+            fs('givenName', 'And the given name?', 'text'),
+            fs('id_number', "What's the student / registration number?", 'text'),
+            fs('extra1',    'What course is shown?', 'text'),
+            fs('dob',       'What date was it issued?', 'date'),
+            fs('extra2',    'Which school or institution?', 'text')
+        ],
+        academic_document: [
+            fs('surName',   "What's the surname on the document?", 'text'),
+            fs('givenName', 'And the given name?', 'text'),
+            fs('id_number', "What's the certificate number?", 'text'),
+            fs('extra1',    'Which institution?', 'text'),
+            fs('extra2',    "What's the course title?", 'text'),
+            fs('extra3',    'What graduation year?', 'number', {min:1900, max:2099})
+        ],
+        land_title: [
+            fs('surName',   "What's the surname on the title?", 'text'),
+            fs('givenName', 'And the given name?', 'text'),
+            fs('id_number', "What's the plot / title number?", 'text'),
+            fs('extra1',    'Which district?', 'text'),
+            fs('extra2',    "What's the land reference?", 'text')
+        ],
+        birth_certificate: [
+            fs('surName',   "What's the surname on the certificate?", 'text'),
+            fs('givenName', 'And the given name?', 'text'),
+            fs('dob',       'Date of birth shown?', 'date'),
+            fs('id_number', "What's the certificate registration number?", 'text'),
+            fs('extra1',    'District of birth?', 'text')
+        ],
+        other: [
+            fs('surName',   "What's the surname on the document?", 'text'),
+            fs('givenName', 'And the given name?', 'text'),
+            fs('id_number', 'Any reference number on it?', 'text'),
+            fs('extra1',    'Briefly describe the document', 'text')
+        ]
+    };
+
+    var TRAILING = {
+        Found: {
+            steps: [
+                fs('front_img', 'Upload a clear photo of the front', 'file', {required:true, accept:'image/*', hint:'Make sure all text is readable'}),
+                fs('back_img',  'Got a photo of the back too?', 'file', {required:false, accept:'image/*', hint:'Optional — skip if you only have the front'})
+            ],
+            submitLabel: 'Submit Found Document', submitIcon: 'bi-cloud-upload'
+        },
+        Lost: {
+            steps: [
+                fs('reporter_name',  "What's your full name?", 'text', {required:true}),
+                fs('reporter_phone', "What's your phone number?", 'tel', {required:true, placeholder:'07XXXXXXXX'}),
+                fs('reporter_email', "What's your email?", 'email', {required:false, placeholder:'you@example.com', hint:'Optional'}),
+                fs('police_letter',  'Upload your police letter / OB slip', 'file', {required:true, accept:'image/*,.pdf'})
+            ],
+            submitLabel: 'Submit Lost Report', submitIcon: 'bi-flag'
+        },
+        Search: {
+            steps: [
+                fs('searcher_phone', "What's your phone number?", 'tel', {required:false, placeholder:'07XXXXXXXX', hint:'Optional — helps us reach you'})
+            ],
+            submitLabel: 'Search Documents', submitIcon: 'bi-search'
         }
-        return '<div class="svc-field"><label class="svc-label">'+label+' <span class="req">*</span></label>'+inp+'</div>';
+    };
+
+    var WIZ = {};
+
+    function initWizard(formType) {
+        WIZ[formType] = {
+            formType: formType,
+            steps: [ fs('doc_type', DOCTYPE_Q[formType], 'choice', {options: DOC_TYPE_OPTIONS}) ],
+            index: 0,
+            values: {},
+            stage: document.getElementById('tfStage' + formType),
+            bar:   document.getElementById('tfBar' + formType),
+            form:  document.getElementById('form' + formType)
+        };
+        renderStep(WIZ[formType]);
     }
 
-    function buildNID(c) {
-        c.innerHTML = f('surName','Surname','text') + f('givenName','Given Name','text') +
-            f('dob','Date of Birth','date') + f('id_number','NIN Number','text','placeholder="CM..."') +
-            f('gender','Gender','gender');
+    function escAttr(v) { return String(v == null ? '' : v).replace(/"/g, '&quot;'); }
+
+    function renderStep(w) {
+        var step   = w.steps[w.index];
+        var isLast = (w.index === w.steps.length - 1) && step.name !== 'doc_type';
+        var qNum   = w.index + 1;
+        var answerHtml = '';
+
+        if (step.type === 'choice') {
+            answerHtml = '<div class="tf-choices" role="group">';
+            step.options.forEach(function (opt, i) {
+                var key = String.fromCharCode(65 + i);
+                var sel = (w.values[step.name] === opt[0]) ? ' selected' : '';
+                answerHtml += '<button type="button" class="tf-choice' + sel + '" data-value="' + escAttr(opt[0]) + '">' +
+                    '<span class="tf-choice-key">' + key + '</span>' + opt[1] + '</button>';
+            });
+            answerHtml += '</div><input type="hidden" name="' + step.name + '" value="' + escAttr(w.values[step.name]) + '">';
+        } else if (step.type === 'file') {
+            var hasFile = !!w.values[step.name + '__filename'];
+            answerHtml = '<label class="tf-file' + (hasFile ? ' has-file' : '') + '" tabindex="0">' +
+                '<input type="file" name="' + step.name + '" accept="' + escAttr(step.accept || '') + '" class="tf-file-input">' +
+                '<span class="tf-file-inner">' +
+                    '<i class="bi ' + (hasFile ? 'bi-check-circle-fill' : 'bi-cloud-arrow-up') + '"></i>' +
+                    '<span class="tf-file-text">' + (hasFile ? w.values[step.name + '__filename'] : 'Click to choose a file') + '</span>' +
+                '</span></label>';
+        } else {
+            var inputType = (step.type === 'number' || step.type === 'date' || step.type === 'tel' || step.type === 'email') ? step.type : 'text';
+            answerHtml = '<input type="' + inputType + '" name="' + step.name + '" class="tf-answer-input" autocomplete="off"' +
+                (step.placeholder ? ' placeholder="' + escAttr(step.placeholder) + '"' : (inputType === 'text' ? ' placeholder="Type your answer here…"' : '')) +
+                (step.min != null ? ' min="' + step.min + '"' : '') +
+                (step.max != null ? ' max="' + step.max + '"' : '') +
+                ' value="' + escAttr(w.values[step.name]) + '">';
+        }
+
+        var okLabel = isLast ? TRAILING[w.formType].submitLabel : 'OK';
+        var okIcon  = isLast ? (TRAILING[w.formType].submitIcon || 'bi-check-lg') : 'bi-check-lg';
+
+        w.stage.innerHTML =
+            '<div class="tf-step">' +
+                '<div class="tf-q"><span class="tf-qnum">' + qNum + ' <i class="bi bi-arrow-right"></i></span>' + step.q +
+                    (step.required ? ' <span class="req">*</span>' : ' <span class="tf-optional">(optional)</span>') +
+                '</div>' +
+                (step.hint ? '<p class="tf-hint">' + step.hint + '</p>' : '') +
+                '<div class="tf-answer">' + answerHtml + '</div>' +
+                '<div class="tf-error" hidden></div>' +
+                '<div class="tf-actions">' +
+                    '<button type="button" class="tf-ok-btn">' + okLabel + ' <i class="bi ' + okIcon + '"></i></button>' +
+                    (step.type !== 'file' ? '<span class="tf-enter-hint">press <strong>Enter ↵</strong></span>' : '') +
+                    (!step.required ? '<button type="button" class="tf-skip">Skip <i class="bi bi-arrow-right"></i></button>' : '') +
+                '</div>' +
+            '</div>';
+
+        w.bar.style.width = Math.round((w.index / Math.max(1, w.steps.length - 1)) * 100) + '%';
+
+        var stepEl = w.stage.querySelector('.tf-step');
+        stepEl.querySelector('.tf-ok-btn').addEventListener('click', function () { attemptNext(w); });
+
+        var skipBtn = stepEl.querySelector('.tf-skip');
+        if (skipBtn) skipBtn.addEventListener('click', function () { goNext(w); });
+
+        if (step.type === 'choice') {
+            stepEl.querySelectorAll('.tf-choice').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    w.values[step.name] = btn.getAttribute('data-value');
+                    stepEl.querySelectorAll('.tf-choice').forEach(function (b) { b.classList.remove('selected'); });
+                    btn.classList.add('selected');
+                    setTimeout(function () { attemptNext(w); }, 180);
+                });
+            });
+        } else if (step.type === 'file') {
+            stepEl.querySelector('.tf-file-input').addEventListener('change', function () {
+                if (this.files && this.files[0]) {
+                    w.values[step.name + '__filename'] = this.files[0].name;
+                    stepEl.querySelector('.tf-file').classList.add('has-file');
+                    stepEl.querySelector('.tf-file-text').textContent = this.files[0].name;
+                    stepEl.querySelector('.tf-file-inner i').className = 'bi bi-check-circle-fill';
+                    stepEl.querySelector('.tf-error').hidden = true;
+                }
+            });
+        } else {
+            var inputEl = stepEl.querySelector('.tf-answer-input');
+            inputEl.focus();
+            inputEl.addEventListener('input', function () {
+                w.values[step.name] = inputEl.value;
+                stepEl.querySelector('.tf-error').hidden = true;
+            });
+            inputEl.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); attemptNext(w); }
+            });
+        }
+
+        var wizardEl = w.stage.closest('.tf-wizard');
+        wizardEl.querySelector('[data-nav="up"]').disabled = (w.index === 0);
     }
-    function buildDP(c) {
-        c.innerHTML = f('surName','Surname','text') + f('givenName','Given Name','text') +
-            f('dob','Date of Birth','date') + f('id_number','Permit Number','text') +
-            f('extra1','NIN Number','text','placeholder="CM..."');
+
+    function validateStep(w) {
+        var step = w.steps[w.index];
+        if (!step.required) return true;
+        if (step.type === 'choice') return !!w.values[step.name];
+        if (step.type === 'file') {
+            var input = w.stage.querySelector('.tf-file-input');
+            return !!(input && input.files && input.files.length > 0);
+        }
+        var input = w.stage.querySelector('.tf-answer-input');
+        return !!(input && input.value.trim() !== '');
     }
-    function buildPP(c) {
-        c.innerHTML = f('surName','Surname','text') + f('givenName','Given Name','text') +
-            f('dob','Date of Birth','date') + f('id_number','Passport Number','text') +
-            f('extra1','Nationality','text');
+
+    function showStepError(w) {
+        var stepEl = w.stage.querySelector('.tf-step');
+        var errEl  = stepEl.querySelector('.tf-error');
+        errEl.textContent = 'Please answer this question to continue';
+        errEl.hidden = false;
+        stepEl.classList.remove('tf-shake');
+        void stepEl.offsetWidth;
+        stepEl.classList.add('tf-shake');
     }
-    function buildSID(c) {
-        c.innerHTML = f('surName','Surname','text') + f('givenName','Given Name','text') +
-            f('id_number','Student / Reg Number','text') + f('extra1','Course','text') +
-            f('dob','Date Issued','date') + f('extra2','School / Institution','text');
+
+    function attemptNext(w) {
+        if (!validateStep(w)) { showStepError(w); return; }
+        goNext(w);
     }
-    function buildAD(c) {
-        c.innerHTML = f('surName','Surname','text') + f('givenName','Given Name','text') +
-            f('id_number','Certificate Number','text') + f('extra1','Institution','text') +
-            f('extra2','Course Title','text') + f('extra3','Graduation Year','number','min="1900" max="2099"');
+
+    // Each step's stage markup gets replaced (and its inputs destroyed) as
+    // soon as we move on, so an answered field must be persisted somewhere
+    // that survives — a hidden holding area inside the same <form>. Text /
+    // choice answers are re-saved as a hidden input; file answers can't be
+    // recreated, so the actual <input type="file"> node itself is moved
+    // there (which preserves its FileList).
+    function commitStep(w) {
+        var step = w.steps[w.index];
+        var collected = w.form.querySelector('.tf-collected');
+        collected.querySelectorAll('[name="' + step.name + '"]').forEach(function (el) { el.remove(); });
+
+        if (step.type === 'file') {
+            var fileInput = w.stage.querySelector('.tf-file-input');
+            if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                collected.appendChild(fileInput);
+            }
+        } else {
+            var hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = step.name;
+            hidden.value = w.values[step.name] || '';
+            collected.appendChild(hidden);
+        }
     }
-    function buildLT(c) {
-        c.innerHTML = f('surName','Surname','text') + f('givenName','Given Name','text') +
-            f('id_number','Plot / Title Number','text') + f('extra1','District','text') +
-            f('extra2','Land Reference','text');
+
+    function goNext(w) {
+        var step = w.steps[w.index];
+        commitStep(w);
+        if (w.index === 0 && step.name === 'doc_type') {
+            var docType = w.values.doc_type;
+            var rest = (STEP_DEFS[docType] || []).concat(TRAILING[w.formType].steps);
+            w.steps = [w.steps[0]].concat(rest);
+        }
+        if (w.index >= w.steps.length - 1) {
+            w.form.submit();
+            return;
+        }
+        w.index++;
+        renderStep(w);
     }
-    function buildBC(c) {
-        c.innerHTML = f('surName','Surname','text') + f('givenName','Given Name','text') +
-            f('dob','Date of Birth','date') + f('id_number','Certificate Reg Number','text') +
-            f('extra1','District of Birth','text');
+
+    function goPrev(w) {
+        if (w.index === 0) return;
+        w.index--;
+        renderStep(w);
     }
-    function buildOT(c) {
-        c.innerHTML = f('surName','Surname','text') + f('givenName','Given Name','text') +
-            f('id_number','Document Reference Number','text') + f('extra1','Description','text');
-    }
+
+    ['Found', 'Lost', 'Search'].forEach(function (formType) {
+        initWizard(formType);
+        var wizardEl = document.querySelector('.tf-wizard[data-form="' + formType + '"]');
+        wizardEl.querySelector('[data-nav="up"]').addEventListener('click', function () { goPrev(WIZ[formType]); });
+        wizardEl.querySelector('[data-nav="down"]').addEventListener('click', function () { attemptNext(WIZ[formType]); });
+    });
     </script>
 
 </body>
