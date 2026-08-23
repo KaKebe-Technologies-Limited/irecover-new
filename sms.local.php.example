@@ -1,0 +1,13 @@
+<?php
+// ─────────────────────────────────────────────
+// Africa's Talking SMS credentials — TEMPLATE.
+// Copy this file to `sms.local.php` (gitignored) and fill in the real
+// values there. `sms.local.php` must NEVER be committed.
+//
+// Sign up / get credentials at: https://africastalking.com
+// ─────────────────────────────────────────────
+define('AT_USERNAME', 'your_africastalking_username');
+define('AT_API_KEY',  'your_africastalking_api_key');
+define('AT_SENDER_ID', ''); // optional registered short/sender ID; leave blank to use the shared default
+
+define('AT_SANDBOX', true); // true = sandbox (username 'sandbox', no real SMS sent/billed)

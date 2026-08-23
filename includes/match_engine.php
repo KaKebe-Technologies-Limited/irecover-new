@@ -4,6 +4,45 @@
 // Checks for matches between found docs and
 // lost reports, creates alerts + notifications
 // ─────────────────────────────────────────────
+require_once __DIR__ . '/sms_notify.php';
+
+/**
+ * Tells the person who reported/searched for a document that it has been
+ * found — sent by email (if they gave one) AND SMS (if they gave a phone).
+ * Never throws — failures are only logged, so a bad phone/email can never
+ * break the match that triggered this.
+ */
+function notifyOwnerDocumentFound(array $r): void {
+    $docTypeLabel = ucwords(str_replace('_', ' ', $r['doc_type'] ?? ''));
+    $trackUrl     = siteBaseUrl() . '/track.php?id_number=' . urlencode($r['id_number'] ?? '');
+    $name         = $r['reporter_name'] ?? '';
+
+    if (!empty($r['reporter_email']) && filter_var($r['reporter_email'], FILTER_VALIDATE_EMAIL)) {
+        $subject = 'Good news — your ' . $docTypeLabel . ' has been found!';
+        $body  = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;">';
+        $body .= '<h2 style="color:#15803d;margin:0 0 .75rem;">We found your document!</h2>';
+        $body .= '<p>Hi' . ($name !== '' ? ' ' . htmlspecialchars($name) : '') . ',</p>';
+        $body .= '<p>Your <strong>' . htmlspecialchars($docTypeLabel) . '</strong> has been matched to a document in our system. '
+               . 'Our team is verifying the match with the holding station — once approved, you can pay a small recovery fee and get an instant pickup receipt.</p>';
+        $body .= '<p><a href="' . htmlspecialchars($trackUrl) . '" style="display:inline-block;background:#CC0000;color:#fff;padding:.65rem 1.4rem;border-radius:8px;text-decoration:none;font-weight:bold;">Check Status</a></p>';
+        $body .= '<p style="color:#888;font-size:.85rem;margin-top:1.5rem;">iRecovery Uganda — Kakebe Technologies Limited</p>';
+        $body .= '</div>';
+
+        $headers = [
+            'MIME-Version: 1.0',
+            'Content-Type: text/html; charset=UTF-8',
+            'From: iRecovery Uganda <noreply@irecover.site>',
+        ];
+        if (!@mail($r['reporter_email'], $subject, $body, implode("\r\n", $headers))) {
+            error_log('iRecovery: failed to send found-document email to ' . $r['reporter_email']);
+        }
+    }
+
+    if (!empty($r['reporter_phone'])) {
+        $msg = "iRecovery: Good news! Your $docTypeLabel has been found. Check status: $trackUrl";
+        sendSms($r['reporter_phone'], $msg);
+    }
+}
 
 /**
  * Absolute base URL of the site (scheme + host + base path), derived from
@@ -74,6 +113,15 @@ function checkMatchOnUpload(mysqli $conn, string $doc_type, string $id_number, s
     $phone   = $match['reporter_phone'];
     $msg     = "Match found! Document ($doc_type) uploaded by station '$station' matches lost report by $name ($phone). Alert #$alertId.";
     createNotification($conn, 'match_found', 'admin', null, $msg, $alertId);
+
+    // Let the person who reported it lost know right away
+    notifyOwnerDocumentFound([
+        'doc_type'       => $doc_type,
+        'id_number'      => $id_number,
+        'reporter_name'  => $match['reporter_name'],
+        'reporter_phone' => $match['reporter_phone'],
+        'reporter_email' => $match['reporter_email'],
+    ]);
 }
 
 /**
@@ -149,6 +197,21 @@ function checkMatchOnReport(mysqli $conn, string $doc_type, string $id_number, s
     // Notify admins
     $msg = "Match found! Lost report by $reporter_name ($reporter_phone) matches a found $doc_type held by station '$station'. Alert #$alertId.";
     createNotification($conn, 'match_found', 'admin', null, $msg, $alertId);
+
+    // Let the reporter know right away — the match already exists, no need to wait
+    $emailStmt = $conn->prepare("SELECT reporter_email FROM lost_reports WHERE id=?");
+    $emailStmt->bind_param('i', $lost_report_id);
+    $emailStmt->execute();
+    $reporterEmail = $emailStmt->get_result()->fetch_assoc()['reporter_email'] ?? null;
+    $emailStmt->close();
+
+    notifyOwnerDocumentFound([
+        'doc_type'       => $doc_type,
+        'id_number'      => $id_number,
+        'reporter_name'  => $reporter_name,
+        'reporter_phone' => $reporter_phone,
+        'reporter_email' => $reporterEmail,
+    ]);
 }
 
 /**

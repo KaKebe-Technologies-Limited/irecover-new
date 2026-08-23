@@ -4,6 +4,9 @@ db.local.php
 # IOTec Pay live credentials — never commit real credentials
 payments.local.php
 
+# Africa's Talking SMS credentials — never commit real credentials
+sms.local.php
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db

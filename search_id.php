@@ -368,8 +368,13 @@ $fee = 30000; // Fixed fee UGX 30,000
 
     <!-- Action buttons -->
     <div class="action-buttons">
-        <a href="track.php?id_number=<?= urlencode($raw_id) ?>" class="btn-pay">
-            <i class="bi bi-signpost-split"></i> Check Verification &amp; Payment Status
+        <a href="pay.php?id_number=<?= urlencode($raw_id) ?>" class="btn-pay">
+            <i class="bi bi-phone"></i> Make Payment
+        </a>
+    </div>
+    <div class="text-center" style="font-size:.82rem;margin-top:-.5rem;margin-bottom:1rem;">
+        <a href="track.php?id_number=<?= urlencode($raw_id) ?>" style="color:#888;">
+            <i class="bi bi-signpost-split me-1"></i>Not ready yet? Check status
         </a>
     </div>
 
@@ -395,14 +400,36 @@ $fee = 30000; // Fixed fee UGX 30,000
         <i class="bi bi-search nf-icon"></i>
         <h2 style="font-weight:700;font-size:1.4rem;">No Match Found</h2>
         <p class="text-muted">We could not find a document matching your details right now.</p>
-        <p class="text-muted" style="font-size:.85rem;">Documents are added daily by our partner stations — check back soon.</p>
-        <div class="d-flex flex-wrap gap-2 justify-content-center mt-3">
+        <p class="text-muted" style="font-size:.85rem;">Documents are added daily by our partner stations — check back soon, or let us notify you.</p>
+        <div class="d-flex flex-wrap gap-2 justify-content-center mt-3 mb-4">
             <a href="index.php" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-arrow-left me-1"></i> Try Again
             </a>
             <a href="index.php#services" class="btn btn-danger btn-sm">
                 <i class="bi bi-flag me-1"></i> Report It Lost
             </a>
+        </div>
+
+        <div class="text-start" style="background:#f8f9fa;border-radius:.75rem;padding:1.25rem;margin-top:.5rem;">
+            <h3 style="font-size:1rem;font-weight:700;margin-bottom:.25rem;"><i class="bi bi-bell text-danger me-1"></i> Notify Me When Found</h3>
+            <p class="text-muted" style="font-size:.82rem;margin-bottom:1rem;">We'll email and/or text you the moment a matching document turns up — no need to keep checking back.</p>
+            <form method="POST" action="notify_me.php">
+                <input type="hidden" name="doc_type" value="<?= htmlspecialchars($doc_type) ?>">
+                <input type="hidden" name="sur_name" value="<?= htmlspecialchars($sur_name) ?>">
+                <input type="hidden" name="given_name" value="<?= htmlspecialchars($given_name) ?>">
+                <input type="hidden" name="dob" value="<?= htmlspecialchars($dob ?? '') ?>">
+                <input type="hidden" name="id_number" value="<?= htmlspecialchars($id_number) ?>">
+                <div class="mb-2">
+                    <input type="text" name="notify_name" class="form-control form-control-sm" placeholder="Your name (optional)">
+                </div>
+                <div class="mb-2">
+                    <input type="tel" name="notify_phone" class="form-control form-control-sm" placeholder="Your phone number" required>
+                </div>
+                <div class="mb-3">
+                    <input type="email" name="notify_email" class="form-control form-control-sm" placeholder="Your email (optional)">
+                </div>
+                <button type="submit" class="btn btn-danger btn-sm w-100"><i class="bi bi-bell me-1"></i> Notify Me When Found</button>
+            </form>
         </div>
     </div>
 

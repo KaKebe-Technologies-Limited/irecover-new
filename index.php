@@ -554,6 +554,42 @@ if (isset($_SESSION['station_user'])) {
         ]
     };
 
+    // Short, contextual label for each doc type's ID/reference field,
+    // used to phrase the "search by ID" question naturally.
+    var ID_LABELS = {
+        national_id:       'NIN',
+        driving_permit:    'permit',
+        passport:          'passport',
+        student_id:        'student / registration',
+        academic_document: 'certificate',
+        land_title:        'plot / title',
+        birth_certificate: 'certificate registration',
+        other:             'reference'
+    };
+
+    // Search branches after doc type: either "I have the ID number" or
+    // "I only know the name + date of birth" — asking for every field
+    // regardless of which one the searcher actually has is pointless.
+    function buildSearchMethodStep(docType) {
+        var idLabel = ID_LABELS[docType] || 'reference';
+        return fs('search_method', 'How would you like to search?', 'choice', {
+            options: [
+                ['id',   'By ID / ' + idLabel.charAt(0).toUpperCase() + idLabel.slice(1) + ' Number'],
+                ['name', 'By Full Name + Date of Birth']
+            ],
+            dynamicNext: function (method) {
+                var next = (method === 'id')
+                    ? [ fs('id_number', "What's the " + idLabel + " number?", 'text', {placeholder: docType === 'national_id' ? 'CM...' : ''}) ]
+                    : [
+                        fs('surName',   "What's the surname on the document?", 'text'),
+                        fs('givenName', 'And the given name?', 'text'),
+                        fs('dob',       'Date of birth on the document?', 'date')
+                      ];
+                return next.concat(TRAILING.Search.steps);
+            }
+        });
+    }
+
     var TRAILING = {
         Found: {
             steps: [
@@ -581,11 +617,23 @@ if (isset($_SESSION['station_user'])) {
 
     var WIZ = {};
 
+    // What happens right after doc type is answered: Found/Lost go straight
+    // into that type's fixed field list; Search instead asks how the
+    // searcher wants to look the document up (see buildSearchMethodStep).
+    function docTypeDynamicNext(formType) {
+        if (formType === 'Search') {
+            return function (docType) { return [ buildSearchMethodStep(docType) ]; };
+        }
+        return function (docType) {
+            return (STEP_DEFS[docType] || []).concat(TRAILING[formType].steps);
+        };
+    }
+
     function initWizard(formType) {
         WIZ[formType] = {
             formType: formType,
             started: false,
-            steps: [ fs('doc_type', DOCTYPE_Q[formType], 'choice', {options: DOC_TYPE_OPTIONS}) ],
+            steps: [ fs('doc_type', DOCTYPE_Q[formType], 'choice', {options: DOC_TYPE_OPTIONS, dynamicNext: docTypeDynamicNext(formType)}) ],
             index: 0,
             values: {},
             stage: document.getElementById('tfStage' + formType),
@@ -616,7 +664,7 @@ if (isset($_SESSION['station_user'])) {
 
     function renderStep(w) {
         var step   = w.steps[w.index];
-        var isLast = (w.index === w.steps.length - 1) && step.name !== 'doc_type';
+        var isLast = (w.index === w.steps.length - 1) && typeof step.dynamicNext !== 'function';
         var qNum   = w.index + 1;
         var answerHtml = '';
 
@@ -764,10 +812,9 @@ if (isset($_SESSION['station_user'])) {
     function goNext(w) {
         var step = w.steps[w.index];
         commitStep(w);
-        if (w.index === 0 && step.name === 'doc_type') {
-            var docType = w.values.doc_type;
-            var rest = (STEP_DEFS[docType] || []).concat(TRAILING[w.formType].steps);
-            w.steps = [w.steps[0]].concat(rest);
+        if (typeof step.dynamicNext === 'function') {
+            var extra = step.dynamicNext(w.values[step.name], w) || [];
+            w.steps = w.steps.slice(0, w.index + 1).concat(extra);
         }
         if (w.index >= w.steps.length - 1) {
             w.form.submit();
