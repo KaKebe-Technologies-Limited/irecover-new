@@ -7,6 +7,9 @@ payments.local.php
 # Africa's Talking SMS credentials — never commit real credentials
 sms.local.php
 
+# SMTP credentials — never commit real credentials
+email.local.php
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db

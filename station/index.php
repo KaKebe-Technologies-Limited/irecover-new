@@ -311,9 +311,11 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
           $maStmt = $conn->prepare("
             SELECT ma.id, ma.alert_status, ma.created_at, ma.admin_approved, ma.station_approved,
                    lr.doc_type, lr.sur_name, lr.given_name, lr.reporter_name, lr.reporter_phone,
+                   d.id_number, d.dob, d.gender, d.front_img, d.back_img,
                    p.id as pay_id, p.status as pay_status, p.station_commission, p.payer_phone
             FROM match_alerts ma
             LEFT JOIN lost_reports lr ON lr.id = ma.lost_report_id
+            LEFT JOIN documents d ON d.id = ma.document_id
             LEFT JOIN payments p ON p.match_alert_id = ma.id
             WHERE ma.station = ?
             ORDER BY ma.created_at DESC");
@@ -349,10 +351,13 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 <td>$statusBadge</td>
                 <td>" . htmlspecialchars($r['created_at']) . "</td>
                 <td>";
+              $aid = (int)$r['id'];
+              $mFrontUrl = htmlspecialchars(docImageUrl($r['front_img'] ?? ''));
+              $mBackUrl  = htmlspecialchars(docImageUrl($r['back_img']  ?? ''));
+              echo "<button class='btn btn-outline btn-sm view-btn mb-1' data-id='$aid' data-type='" . htmlspecialchars(ucwords(str_replace('_', ' ', $r['doc_type'] ?? ''))) . "' data-name='" . htmlspecialchars($r['sur_name'] ?? '') . "' data-second-name='" . htmlspecialchars($r['given_name'] ?? '') . "' data-front-image='$mFrontUrl' data-back-image='$mBackUrl' data-id-number='" . htmlspecialchars($r['id_number'] ?? '') . "' data-dob='" . htmlspecialchars($r['dob'] ?? '') . "' data-gender='" . htmlspecialchars(ucfirst($r['gender'] ?? '')) . "' data-status='" . htmlspecialchars($r['alert_status']) . "' data-date='" . htmlspecialchars($r['created_at']) . "'><i class='bi bi-eye'></i> View</button> ";
               if ($r['alert_status'] === 'collected') {
                 echo "<span style='color:var(--green);font-weight:600;'><i class='bi bi-check2-all'></i> Done</span>";
               } else {
-                $aid = (int)$r['id'];
                 if (!$stationApproved) {
                   echo "<form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='approve_match_station' class='btn btn-primary btn-sm mb-1'><i class='bi bi-building-check'></i> Confirm It's Ours</button></form> ";
                 }

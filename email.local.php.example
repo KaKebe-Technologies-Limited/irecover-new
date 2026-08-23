@@ -1,0 +1,14 @@
+<?php
+// ─────────────────────────────────────────────
+// SMTP credentials for outgoing email — TEMPLATE.
+// Copy this file to `email.local.php` (gitignored) and fill in the real
+// values there. `email.local.php` must NEVER be committed.
+//
+// For Gmail: use an App Password (Google Account → Security → 2-Step
+// Verification → App Passwords), NOT the account's normal login password.
+// ─────────────────────────────────────────────
+define('SMTP_HOST', 'smtp.gmail.com');
+define('SMTP_PORT', 587);
+define('SMTP_USER', 'your_gmail_address@gmail.com');
+define('SMTP_PASS', 'your_16_char_app_password');
+define('SMTP_FROM_NAME', 'iRecovery Uganda');
