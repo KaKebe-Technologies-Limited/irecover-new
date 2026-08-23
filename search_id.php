@@ -95,7 +95,7 @@ if (!$found) {
         $sn  = $id_number ?: ($_POST['studentNumber'] ?? '');
         $sch = $_POST['school'] ?? '';
         $stmt = $conn->prepare(
-            "SELECT student_id as id, 'student_id' as doc_type, sur_name, given_name, dob,
+            "SELECT student_id as id, 'student_id' as doc_type, sur_name, given_name, date_issued as dob,
                     student_number as id_number, front as front_img, back as back_img,
                     date_found as submitted_at, reporter as station_holding, user_action as action
              FROM student_ids

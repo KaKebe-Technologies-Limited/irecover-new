@@ -281,10 +281,6 @@ if (isset($_SESSION['station_user'])) {
                             <div class="tf-wizard" data-accent="found" data-form="Found">
                                 <div class="tf-progress"><div class="tf-progress-bar" id="tfBarFound"></div></div>
                                 <div class="tf-stage" id="tfStageFound"></div>
-                                <div class="tf-nav">
-                                    <button type="button" class="tf-nav-btn" data-nav="up" aria-label="Previous question"><i class="bi bi-chevron-up"></i></button>
-                                    <button type="button" class="tf-nav-btn" data-nav="down" aria-label="Next question"><i class="bi bi-chevron-down"></i></button>
-                                </div>
                             </div>
                         </form>
                     </div>
@@ -308,10 +304,6 @@ if (isset($_SESSION['station_user'])) {
                             <div class="tf-wizard" data-accent="lost" data-form="Lost">
                                 <div class="tf-progress"><div class="tf-progress-bar" id="tfBarLost"></div></div>
                                 <div class="tf-stage" id="tfStageLost"></div>
-                                <div class="tf-nav">
-                                    <button type="button" class="tf-nav-btn" data-nav="up" aria-label="Previous question"><i class="bi bi-chevron-up"></i></button>
-                                    <button type="button" class="tf-nav-btn" data-nav="down" aria-label="Next question"><i class="bi bi-chevron-down"></i></button>
-                                </div>
                             </div>
                         </form>
                     </div>
@@ -334,10 +326,6 @@ if (isset($_SESSION['station_user'])) {
                             <div class="tf-wizard" data-accent="search" data-form="Search">
                                 <div class="tf-progress"><div class="tf-progress-bar" id="tfBarSearch"></div></div>
                                 <div class="tf-stage" id="tfStageSearch"></div>
-                                <div class="tf-nav">
-                                    <button type="button" class="tf-nav-btn" data-nav="up" aria-label="Previous question"><i class="bi bi-chevron-up"></i></button>
-                                    <button type="button" class="tf-nav-btn" data-nav="down" aria-label="Next question"><i class="bi bi-chevron-down"></i></button>
-                                </div>
                             </div>
                         </form>
                         <div class="text-center mt-3">
@@ -617,8 +605,6 @@ if (isset($_SESSION['station_user'])) {
                 '<button type="button" class="tf-ok-btn tf-start-btn"><i class="bi bi-play-fill"></i> Start</button>' +
             '</div>';
         w.stage.querySelector('.tf-start-btn').addEventListener('click', function () { startWizard(w); });
-        var wizardEl = w.stage.closest('.tf-wizard');
-        wizardEl.querySelector('[data-nav="up"]').disabled = true;
     }
 
     function startWizard(w) {
@@ -673,6 +659,7 @@ if (isset($_SESSION['station_user'])) {
                 '<div class="tf-error" hidden></div>' +
                 '<div class="tf-actions">' +
                     '<button type="button" class="tf-ok-btn">' + okLabel + ' <i class="bi ' + okIcon + '"></i></button>' +
+                    (w.index > 0 ? '<button type="button" class="tf-back-btn"><i class="bi bi-arrow-left"></i> Back</button>' : '') +
                     (step.type !== 'file' ? '<span class="tf-enter-hint">press <strong>Enter ↵</strong></span>' : '') +
                     (!step.required ? '<button type="button" class="tf-skip">Skip <i class="bi bi-arrow-right"></i></button>' : '') +
                 '</div>' +
@@ -682,6 +669,9 @@ if (isset($_SESSION['station_user'])) {
 
         var stepEl = w.stage.querySelector('.tf-step');
         stepEl.querySelector('.tf-ok-btn').addEventListener('click', function () { attemptNext(w); });
+
+        var backBtn = stepEl.querySelector('.tf-back-btn');
+        if (backBtn) backBtn.addEventListener('click', function () { goPrev(w); });
 
         var skipBtn = stepEl.querySelector('.tf-skip');
         if (skipBtn) skipBtn.addEventListener('click', function () { goNext(w); });
@@ -716,9 +706,6 @@ if (isset($_SESSION['station_user'])) {
                 if (e.key === 'Enter') { e.preventDefault(); attemptNext(w); }
             });
         }
-
-        var wizardEl = w.stage.closest('.tf-wizard');
-        wizardEl.querySelector('[data-nav="up"]').disabled = (w.index === 0);
     }
 
     function validateStep(w) {
@@ -796,12 +783,7 @@ if (isset($_SESSION['station_user'])) {
         renderStep(w);
     }
 
-    ['Found', 'Lost', 'Search'].forEach(function (formType) {
-        initWizard(formType);
-        var wizardEl = document.querySelector('.tf-wizard[data-form="' + formType + '"]');
-        wizardEl.querySelector('[data-nav="up"]').addEventListener('click', function () { goPrev(WIZ[formType]); });
-        wizardEl.querySelector('[data-nav="down"]').addEventListener('click', function () { attemptNext(WIZ[formType]); });
-    });
+    ['Found', 'Lost', 'Search'].forEach(function (formType) { initWizard(formType); });
     </script>
 
 </body>

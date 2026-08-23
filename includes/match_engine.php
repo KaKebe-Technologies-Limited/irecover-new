@@ -117,7 +117,9 @@ function checkMatchOnReport(mysqli $conn, string $doc_type, string $id_number, s
             $s->close();
             if ($r) { $found_doc_id = $r['id']; $station = $r['reporter']; }
         } elseif ($doc_type === 'student_id') {
-            $s = $conn->prepare("SELECT student_id as id, reporter FROM student_ids WHERE user_action='Found' AND (student_number=? OR (sur_name=? AND given_name=? AND dob=?)) LIMIT 1");
+            // student_ids has no dob column — it stores "date issued" instead,
+            // which is what the shared $dob parameter actually holds for this doc type.
+            $s = $conn->prepare("SELECT student_id as id, reporter FROM student_ids WHERE user_action='Found' AND (student_number=? OR (sur_name=? AND given_name=? AND date_issued=?)) LIMIT 1");
             $s->bind_param('ssss', $id_number, $sur_name, $given_name, $dob);
             $s->execute();
             $r = $s->get_result()->fetch_assoc();
