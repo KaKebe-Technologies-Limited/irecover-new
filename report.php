@@ -10,47 +10,6 @@ include_once 'includes/email_notify.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: index.php'); exit(); }
 
-function genRand(int $len = 6): string {
-    $c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    $s = ''; for ($i=0;$i<$len;$i++) $s.=$c[random_int(0,strlen($c)-1)]; return $s;
-}
-/**
- * Moves an uploaded file into uploads/, preserving its real extension.
- * Returns null when no file was chosen (fine for optional fields), or
- * throws when a file WAS provided but couldn't actually be saved — the
- * caller must not proceed to store a URL for a file that doesn't exist.
- */
-function saveFile(array $file, string $prefix): ?string {
-    $error = $file['error'] ?? UPLOAD_ERR_NO_FILE;
-    if ($error === UPLOAD_ERR_NO_FILE || empty($file['name'])) {
-        return null;
-    }
-    if ($error !== UPLOAD_ERR_OK) {
-        $msgs = [
-            UPLOAD_ERR_INI_SIZE  => 'That file is too large.',
-            UPLOAD_ERR_FORM_SIZE => 'That file is too large.',
-            UPLOAD_ERR_PARTIAL   => 'The file was only partially uploaded — please try again.',
-        ];
-        throw new RuntimeException($msgs[$error] ?? 'The file could not be uploaded — please try again.');
-    }
-    if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
-        throw new RuntimeException('The file could not be uploaded — please try again.');
-    }
-
-    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    $allowed = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf'];
-    if (!in_array($ext, $allowed, true)) {
-        $mime = @mime_content_type($file['tmp_name']);
-        $ext  = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif', 'application/pdf' => 'pdf'][$mime] ?? 'jpg';
-    }
-
-    $name = $prefix . genRand() . '_' . time() . '.' . $ext;
-    if (!move_uploaded_file($file['tmp_name'], __DIR__ . '/uploads/' . $name)) {
-        throw new RuntimeException('The file could not be saved — please try again.');
-    }
-    return siteBaseUrl() . '/uploads/' . $name;
-}
-
 $doc_type      = $_POST['doc_type']       ?? '';
 $sur_name      = trim(strtoupper($_POST['surName']   ?? ''));
 $given_name    = trim(strtoupper($_POST['givenName'] ?? ''));
@@ -62,34 +21,26 @@ $extra2        = trim($_POST['extra2']    ?? '');
 $reporter_name = trim($_POST['reporter_name']  ?? '');
 $reporter_phone= trim($_POST['reporter_phone'] ?? '');
 $reporter_email= trim($_POST['reporter_email'] ?? '');
+$police_report_code = trim($_POST['police_report_code'] ?? '') ?: null;
 
 $status  = null;
 $message = '';
 $matchAlert = false;
-$police_letter = null;
-try {
-    $police_letter = saveFile($_FILES['police_letter'] ?? [], 'POLICE_LTR_');
-} catch (RuntimeException $e) {
-    $status  = 'error';
-    $message = $e->getMessage();
-}
 
-$stmt = ($status === 'error') ? null : $conn->prepare(
+$stmt = $conn->prepare(
     "INSERT INTO lost_reports
      (doc_type, sur_name, given_name, dob, gender, id_number, extra_field1, extra_field2,
-      reporter_name, reporter_phone, reporter_email, police_letter, match_status)
+      reporter_name, reporter_phone, reporter_email, police_report_code, match_status)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'unmatched')"
 );
-if ($status === 'error') {
-    // saveFile() already set $message above
-} elseif (!$stmt) {
+if (!$stmt) {
     $status  = 'error';
     $message = 'Database error: ' . $conn->error;
 } else {
     $stmt->bind_param('ssssssssssss',
         $doc_type, $sur_name, $given_name, $dob, $gender, $id_number,
         $extra1, $extra2,
-        $reporter_name, $reporter_phone, $reporter_email, $police_letter
+        $reporter_name, $reporter_phone, $reporter_email, $police_report_code
     );
     if ($stmt->execute()) {
         $lost_id = $conn->insert_id;
@@ -111,15 +62,16 @@ if ($status === 'error') {
 
         // Email the Kakebe team
         notifyTeamOfLostReport([
-            'doc_type'       => $doc_type,
-            'sur_name'       => $sur_name,
-            'given_name'     => $given_name,
-            'dob'            => $dob,
-            'id_number'      => $id_number,
-            'reporter_name'  => $reporter_name,
-            'reporter_phone' => $reporter_phone,
-            'reporter_email' => $reporter_email,
-            'lost_id'        => $lost_id,
+            'doc_type'            => $doc_type,
+            'sur_name'            => $sur_name,
+            'given_name'          => $given_name,
+            'dob'                 => $dob,
+            'id_number'           => $id_number,
+            'reporter_name'       => $reporter_name,
+            'reporter_phone'      => $reporter_phone,
+            'reporter_email'      => $reporter_email,
+            'police_report_code'  => $police_report_code,
+            'lost_id'             => $lost_id,
         ]);
     } else {
         $status  = 'error';

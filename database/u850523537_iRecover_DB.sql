@@ -290,6 +290,7 @@ CREATE TABLE `lost_reports` (
   `reporter_phone` varchar(20) NOT NULL,
   `reporter_email` varchar(150) DEFAULT NULL,
   `police_letter` varchar(255) DEFAULT NULL,
+  `police_report_code` varchar(100) DEFAULT NULL,
   `match_status` enum('unmatched','matched','notified','collected') NOT NULL DEFAULT 'unmatched',
   `matched_doc_id` int(11) DEFAULT NULL,
   `submitted_at` datetime NOT NULL DEFAULT current_timestamp(),

@@ -65,6 +65,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_status'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_collection'])) {
     $alert_id = (int)($_POST['alert_id'] ?? 0);
     if ($alert_id > 0) {
+        // If no police report was ever filed for this case (no code on file,
+        // no photo on file), the station must have physically seen a police
+        // letter in person before releasing the document.
+        $lrChk = $conn->query(
+            "SELECT lr.police_report_code, lr.police_letter
+             FROM match_alerts ma
+             LEFT JOIN lost_reports lr ON lr.id = ma.lost_report_id
+             WHERE ma.id=" . (int)$alert_id
+        )->fetch_assoc();
+        $hasPoliceOnFile = $lrChk && (!empty($lrChk['police_report_code']) || !empty($lrChk['police_letter']));
+
+        if (!$hasPoliceOnFile && empty($_POST['police_letter_presented'])) {
+            $_SESSION['collect_error'] = 'No police report is on file for this case — please confirm the owner presented a police letter in person before releasing the document.';
+            header('Location: index.php');
+            exit();
+        }
+
         $s = $conn->prepare("UPDATE match_alerts SET alert_status='collected' WHERE id=? AND station=?");
         $s->bind_param('is', $alert_id, $userId); $s->execute(); $s->close();
         $r = $conn->query("SELECT document_id FROM match_alerts WHERE id=$alert_id")->fetch_assoc();
@@ -94,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_code'])) {
         $vs = $conn->prepare(
             "SELECT p.id, p.payer_name, p.payer_phone, p.id_number, p.station_commission, p.status, p.download_allowed, p.verification_code,
                     ma.id AS alert_id, ma.alert_status, ma.station,
-                    lr.doc_type, lr.sur_name, lr.given_name
+                    lr.doc_type, lr.sur_name, lr.given_name, lr.police_report_code, lr.police_letter
              FROM payments p
              LEFT JOIN match_alerts ma ON ma.id = p.match_alert_id
              LEFT JOIN lost_reports  lr ON lr.id = ma.lost_report_id
@@ -196,6 +213,13 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
       </div>
 
   <div class="page">
+
+    <?php if (!empty($_SESSION['collect_error'])): ?>
+    <div class="alert alert-danger d-flex align-items-center gap-2 mb-3">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <div><?= htmlspecialchars($_SESSION['collect_error']) ?></div>
+    </div>
+    <?php unset($_SESSION['collect_error']); endif; ?>
 
     <!-- ── Welcome bar ───────────────────────── -->
     <div class="welcome-bar">
@@ -305,14 +329,17 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
     <div id="tMatches" class="tcard">
       <div class="table-responsive">
         <table class="dt">
-          <thead><tr><th>#</th><th>Document</th><th>Owner</th><th>Reporter Contact</th><th>Approval</th><th>Your Commission</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
+          <thead><tr><th>#</th><th>Document</th><th>Owner</th><th>Reporter Contact</th><th>Payer Contact</th><th>Approval</th><th>Your Commission</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
           <tbody>
           <?php
           $maStmt = $conn->prepare("
             SELECT ma.id, ma.alert_status, ma.created_at, ma.admin_approved, ma.station_approved,
-                   lr.doc_type, lr.sur_name, lr.given_name, lr.reporter_name, lr.reporter_phone,
+                   lr.doc_type, lr.reporter_name, lr.reporter_phone,
+                   lr.police_report_code, lr.police_letter,
+                   COALESCE(NULLIF(d.sur_name,''), lr.sur_name) as sur_name,
+                   COALESCE(NULLIF(d.given_name,''), lr.given_name) as given_name,
                    d.id_number, d.dob, d.gender, d.front_img, d.back_img,
-                   p.id as pay_id, p.status as pay_status, p.station_commission, p.payer_phone
+                   p.id as pay_id, p.status as pay_status, p.station_commission, p.payer_name, p.payer_phone
             FROM match_alerts ma
             LEFT JOIN lost_reports lr ON lr.id = ma.lost_report_id
             LEFT JOIN documents d ON d.id = ma.document_id
@@ -341,17 +368,22 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 ? ($r['pay_status'] === 'confirmed' ? '<span class="bd bd-green">UGX ' . number_format((float)($r['station_commission'] ?? 0)) . '</span>'
                                                      : '<span class="bd bd-amber">Pending</span>')
                 : '<span class="bd bd-grey">None</span>';
+              $payerCell = $r['pay_id']
+                ? htmlspecialchars($r['payer_name'] ?? '—') . "<br><a href='tel:" . htmlspecialchars($r['payer_phone'] ?? '') . "' style='color:var(--teal);'>" . htmlspecialchars($r['payer_phone'] ?? '—') . "</a>"
+                : "<span style='color:var(--muted);'>Not paid yet</span>";
               echo "<tr>
                 <td>{$r['id']}</td>
                 <td><span class='bd bd-blue'>" . htmlspecialchars(ucwords(str_replace('_', ' ', $r['doc_type'] ?? ''))) . "</span></td>
                 <td>" . htmlspecialchars(($r['sur_name'] ?? '') . ' ' . ($r['given_name'] ?? '')) . "</td>
                 <td>" . htmlspecialchars($r['reporter_name'] ?? '—') . "<br><a href='tel:" . htmlspecialchars($r['reporter_phone'] ?? '') . "' style='color:var(--teal);'>" . htmlspecialchars($r['reporter_phone'] ?? '—') . "</a></td>
+                <td>$payerCell</td>
                 <td>$approvalChips</td>
                 <td>$payBadge</td>
                 <td>$statusBadge</td>
                 <td>" . htmlspecialchars($r['created_at']) . "</td>
                 <td>";
               $aid = (int)$r['id'];
+              $hasPolice = (!empty($r['police_report_code']) || !empty($r['police_letter'])) ? '1' : '0';
               $mFrontUrl = htmlspecialchars(docImageUrl($r['front_img'] ?? ''));
               $mBackUrl  = htmlspecialchars(docImageUrl($r['back_img']  ?? ''));
               echo "<button class='btn btn-outline btn-sm view-btn mb-1' data-id='$aid' data-type='" . htmlspecialchars(ucwords(str_replace('_', ' ', $r['doc_type'] ?? ''))) . "' data-name='" . htmlspecialchars($r['sur_name'] ?? '') . "' data-second-name='" . htmlspecialchars($r['given_name'] ?? '') . "' data-front-image='$mFrontUrl' data-back-image='$mBackUrl' data-id-number='" . htmlspecialchars($r['id_number'] ?? '') . "' data-dob='" . htmlspecialchars($r['dob'] ?? '') . "' data-gender='" . htmlspecialchars(ucfirst($r['gender'] ?? '')) . "' data-status='" . htmlspecialchars($r['alert_status']) . "' data-date='" . htmlspecialchars($r['created_at']) . "'><i class='bi bi-eye'></i> View</button> ";
@@ -364,7 +396,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 echo "<div class='act-grp'>
                   <form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='set_status' value='paid' class='btn btn-success btn-sm'><i class='bi bi-cash'></i> Paid</button></form>
                   <form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='set_status' value='pending' class='btn btn-warning btn-sm'><i class='bi bi-hourglass-split'></i> Pending</button></form>
-                  <button type='button' class='btn btn-teal btn-sm' onclick='openCollectModal($aid)'><i class='bi bi-check2-circle'></i> Collected</button>
+                  <button type='button' class='btn btn-teal btn-sm' onclick='openCollectModal($aid, $hasPolice)'><i class='bi bi-check2-circle'></i> Collected</button>
                 </div>";
               }
               echo "</td></tr>";
@@ -467,10 +499,19 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
               <div class="kv"><span class="k">Your Commission</span><span class="v">UGX <?= number_format((float)($verify['station_commission'] ?? 0)) ?></span></div>
               <div class="kv"><span class="k">Payer Phone</span><span class="v"><?= htmlspecialchars($verify['payer_phone'] ?? '—') ?></span></div>
 
+              <?php $verifyHasPolice = !empty($verify['police_report_code']) || !empty($verify['police_letter']); ?>
               <form method="POST" class="mt-3">
                 <input type="hidden" name="alert_id" value="<?= (int)$verify['alert_id'] ?>">
                 <label class="fl">Collected By (full name of owner)</label>
                 <input type="text" name="collected_by" class="fc" placeholder="e.g. John Okello" required>
+                <?php if ($verifyHasPolice): ?>
+                  <p class="mt-2" style="font-size:.82rem;color:var(--muted);"><i class="bi bi-check-circle text-teal me-1"></i>Police report already on file (<?= htmlspecialchars($verify['police_report_code'] ?: 'letter attached') ?>) — no need to ask again.</p>
+                <?php else: ?>
+                  <div class="form-check mt-2 mb-1">
+                    <input type="checkbox" class="form-check-input" id="verifyPoliceConfirm" name="police_letter_presented" value="1" required>
+                    <label class="form-check-label" for="verifyPoliceConfirm" style="font-size:.85rem;">No police report is on file for this case — I've confirmed the owner presented a police letter in person.</label>
+                  </div>
+                <?php endif; ?>
                 <button type="submit" name="confirm_collection" class="btn btn-success btn-block mt-2">
                   <i class="bi bi-check2-all me-2"></i>Confirm Collection &amp; Hand Over Document
                 </button>
@@ -577,6 +618,13 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
           <label class="fl">Collected By (full name of owner)</label>
           <input type="text" name="collected_by" class="fc" placeholder="e.g. John Okello" required>
         </div>
+        <div id="collectPoliceNote" class="mb-3" style="display:none;font-size:.82rem;color:var(--muted);">
+          <i class="bi bi-check-circle text-teal me-1"></i>Police report already on file — no need to ask again.
+        </div>
+        <div id="collectPoliceCheck" class="form-check mb-3" style="display:none;">
+          <input type="checkbox" class="form-check-input" id="collectPoliceConfirm" name="police_letter_presented" value="1">
+          <label class="form-check-label" for="collectPoliceConfirm" style="font-size:.85rem;">No police report is on file for this case — I've confirmed the owner presented a police letter in person.</label>
+        </div>
         <button type="submit" name="confirm_collection" class="btn btn-success btn-block">
           <i class="bi bi-check2-all me-2"></i>Confirm Collection &amp; Close Case
         </button>
@@ -647,8 +695,14 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
         if (el && e.target === el) closeModal(id);
       });
     });
-    function openCollectModal(alertId) {
+    function openCollectModal(alertId, hasPolice) {
       document.getElementById('collectAlertId').value = alertId;
+      const checkbox = document.getElementById('collectPoliceConfirm');
+      const needsPolice = !hasPolice || hasPolice === '0';
+      document.getElementById('collectPoliceNote').style.display  = needsPolice ? 'none' : 'block';
+      document.getElementById('collectPoliceCheck').style.display = needsPolice ? 'block' : 'none';
+      checkbox.required = needsPolice;
+      checkbox.checked = false;
       openModal('collectModal');
     }
     document.querySelectorAll('.view-btn').forEach(btn => {

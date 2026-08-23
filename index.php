@@ -603,7 +603,7 @@ if (isset($_SESSION['station_user'])) {
                 fs('reporter_name',  "What's your full name?", 'text', {required:true}),
                 fs('reporter_phone', "What's your phone number?", 'tel', {required:true, placeholder:'07XXXXXXXX'}),
                 fs('reporter_email', "What's your email?", 'email', {required:false, placeholder:'you@example.com', hint:'Optional'}),
-                fs('police_letter',  'Upload your police letter / OB slip', 'file', {required:true, accept:'image/*,.pdf'})
+                fs('police_report_code', 'Already reported it to police? Enter the OB / reference number', 'text', {required:false, hint:"Skip if you haven't reported it yet — you'll just need to bring the police letter in person when you collect it"})
             ],
             submitLabel: 'Submit Lost Report', submitIcon: 'bi-flag'
         },
@@ -617,12 +617,22 @@ if (isset($_SESSION['station_user'])) {
 
     var WIZ = {};
 
-    // What happens right after doc type is answered: Found/Lost go straight
-    // into that type's fixed field list; Search instead asks how the
-    // searcher wants to look the document up (see buildSearchMethodStep).
+    // What happens right after doc type is answered: Found goes straight
+    // into that type's full field list (we need real details to describe
+    // what was found); Lost only ever asks for the ID/reference number —
+    // that's the one thing a reporter reliably knows for certain; Search
+    // asks how the searcher wants to look the document up (see
+    // buildSearchMethodStep).
     function docTypeDynamicNext(formType) {
         if (formType === 'Search') {
             return function (docType) { return [ buildSearchMethodStep(docType) ]; };
+        }
+        if (formType === 'Lost') {
+            return function (docType) {
+                var idLabel = ID_LABELS[docType] || 'reference';
+                var idStep = fs('id_number', "What's the " + idLabel + " number?", 'text', {placeholder: docType === 'national_id' ? 'CM...' : ''});
+                return [idStep].concat(TRAILING.Lost.steps);
+            };
         }
         return function (docType) {
             return (STEP_DEFS[docType] || []).concat(TRAILING[formType].steps);

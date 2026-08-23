@@ -333,7 +333,9 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
           <?php
           $ma = $conn->query("
             SELECT ma.id, ma.alert_status, ma.created_at, ma.station, ma.admin_approved, ma.station_approved,
-                   lr.doc_type, lr.sur_name, lr.given_name, lr.reporter_name, lr.reporter_phone,
+                   lr.doc_type, lr.reporter_name, lr.reporter_phone,
+                   COALESCE(NULLIF(d.sur_name,''), lr.sur_name) as sur_name,
+                   COALESCE(NULLIF(d.given_name,''), lr.given_name) as given_name,
                    d.id_number, d.dob, d.gender, d.front_img, d.back_img,
                    p.id as pay_id, p.status as pay_status, p.amount, p.payer_name, p.payer_phone
             FROM match_alerts ma
@@ -358,12 +360,17 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
               $stationApproved = (int)$r['station_approved'] === 1;
               $approvalChips = ($adminApproved ? '<span class="bd bd-green"><i class="bi bi-shield-check"></i> Admin</span>' : '<span class="bd bd-grey">Admin Pending</span>')
                              . ' ' . ($stationApproved ? '<span class="bd bd-green"><i class="bi bi-building-check"></i> Station</span>' : '<span class="bd bd-grey">Station Pending</span>');
+              $payerCell = $r['pay_id']
+                ? htmlspecialchars($r['payer_name'] ?? '—') . "<br><a href='tel:" . htmlspecialchars($r['payer_phone'] ?? '') . "'>" . htmlspecialchars($r['payer_phone'] ?? '—') . "</a>"
+                  . ($r['pay_status'] === 'confirmed' ? " <span class='bd bd-green'>Paid — call to confirm</span>" : " <span class='bd bd-amber'>Payment pending</span>")
+                : "<span style='color:var(--muted);'>Not paid yet</span>";
               echo "<tr>
                 <td>{$r['id']}</td>
                 <td><span class='bd bd-blue'>" . htmlspecialchars(ucwords(str_replace('_', ' ', $r['doc_type'] ?? ''))) . "</span></td>
                 <td>" . htmlspecialchars($r['sur_name'] . ' ' . $r['given_name']) . "</td>
                 <td>" . htmlspecialchars($r['station'] ?? '—') . "</td>
                 <td>" . htmlspecialchars($r['reporter_name'] ?? '—') . "<br><a href='tel:" . htmlspecialchars($r['reporter_phone'] ?? '') . "'>" . htmlspecialchars($r['reporter_phone'] ?? '—') . "</a></td>
+                <td>$payerCell</td>
                 <td>$approvalChips</td>
                 <td>$badge</td>
                 <td>" . htmlspecialchars($r['created_at']) . "</td>
