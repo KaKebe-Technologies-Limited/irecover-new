@@ -509,7 +509,8 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
             UNION ALL
             SELECT student_id as id, 'Student ID' AS document_type, sur_name as owner_name, given_name, student_number as id_number, NULL as dob, NULL as gender, reporter, front, back, user_action, date_found as reported_at FROM student_ids WHERE user_action='Found'
             UNION ALL
-            SELECT driver_id as id, 'Driving Permit' AS document_type, sur_name as owner_name, given_name, permit_number as id_number, dob, NULL as gender, reporter, front, back, user_action, date_found as reported_at FROM driving_permits WHERE user_action='Found'";
+            SELECT driver_id as id, 'Driving Permit' AS document_type, sur_name as owner_name, given_name, permit_number as id_number, dob, NULL as gender, reporter, front, back, user_action, date_found as reported_at FROM driving_permits WHERE user_action='Found'
+            ORDER BY reported_at DESC";
           $lost = $conn->query($lostQuery);
           if ($lost && $lost->num_rows > 0):
             while ($row = $lost->fetch_assoc()):
@@ -550,7 +551,8 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
             UNION ALL
             SELECT student_id as id, 'Student ID' AS document_type, sur_name as owner_name, given_name, student_number as id_number, NULL as dob, NULL as gender, reporter, front, back, user_action, date_found as reported_at FROM student_ids WHERE user_action='Reported'
             UNION ALL
-            SELECT driver_id as id, 'Driving Permit' AS document_type, sur_name as owner_name, given_name, permit_number as id_number, dob, NULL as gender, reporter, front, back, user_action, date_found as reported_at FROM driving_permits WHERE user_action='Reported'");
+            SELECT driver_id as id, 'Driving Permit' AS document_type, sur_name as owner_name, given_name, permit_number as id_number, dob, NULL as gender, reporter, front, back, user_action, date_found as reported_at FROM driving_permits WHERE user_action='Reported'
+            ORDER BY reported_at DESC");
           if ($reported && $reported->num_rows > 0):
             while ($row = $reported->fetch_assoc()):
               $frontUrl = htmlspecialchars(docImageUrl($row['front'], '../uploads/'));

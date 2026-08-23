@@ -384,6 +384,11 @@ function searchDocumentsBroad(mysqli $conn, string $query, int $limit = 50): arr
         $stmt->close();
     }
 
+    // Each source above is internally sorted, but the merged list isn't —
+    // re-sort the combined set so results are truly most-recent-first
+    // across new + legacy tables together.
+    usort($results, fn($a, $b) => strcmp((string)$b['submitted_at'], (string)$a['submitted_at']));
+
     return $results;
 }
 
