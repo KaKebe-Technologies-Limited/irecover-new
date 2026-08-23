@@ -4,6 +4,7 @@
 // where your recovery stands, and pickup info once it's ready.
 // ─────────────────────────────────────────────
 include_once 'db.php';
+include_once 'includes/match_engine.php';
 
 // admins.number is stored as INT, which drops a leading 0 on Ugandan numbers
 function formatUgPhone(?string $n): string {
@@ -14,7 +15,7 @@ function formatUgPhone(?string $n): string {
 }
 
 $id_number = trim(strtoupper($_GET['id_number'] ?? $_POST['id_number'] ?? ''));
-$stage     = null; // 'awaiting_admin' | 'awaiting_station' | 'ready_to_pay' | 'payment_in_progress' | 'ready_for_pickup' | 'collected' | 'found_unlinked' | 'not_found'
+$stage     = null; // 'ready_to_pay' | 'payment_in_progress' | 'ready_for_pickup' | 'collected' | 'found_unlinked' | 'not_found'
 $info      = [];
 $fee_display = 0; // fee shown on ready_to_pay stage
 $DEFAULT_CONTACT = '0777676206';
@@ -45,15 +46,11 @@ if ($id_number !== '') {
             $stage = 'ready_for_pickup';
         } elseif (in_array($row['pay_status'], ['initiated', 'pending'], true)) {
             $stage = 'payment_in_progress';
-        } elseif ((int)$row['admin_approved'] === 1 && (int)$row['station_approved'] === 1) {
+        } else {
+            // No approval gate — payable as soon as a match exists
             $stage = 'ready_to_pay';
-            // Look up the fee so we can show it before the owner clicks Pay
             $feeInfo     = getFeeConfig($conn, $row['doc_type']);
             $fee_display = $feeInfo['fee_ugx'];
-        } elseif ((int)$row['admin_approved'] === 1) {
-            $stage = 'awaiting_station';
-        } else {
-            $stage = 'awaiting_admin';
         }
     } else {
         // No report/match yet — check if it exists as a found document at all
@@ -149,7 +146,7 @@ if ($id_number !== '') {
 
     <?php if ($stage): ?>
         <?php
-        $stepOrder = ['awaiting_admin', 'awaiting_station', 'ready_to_pay', 'payment_in_progress', 'ready_for_pickup'];
+        $stepOrder = ['ready_to_pay', 'payment_in_progress', 'ready_for_pickup'];
         $curIdx = array_search($stage, $stepOrder, true);
         ?>
 
@@ -172,25 +169,11 @@ if ($id_number !== '') {
                 <a href="index.php#services" class="btn btn-danger btn-sm">Report It Lost</a>
             </div>
 
-        <?php elseif ($stage === 'awaiting_admin'): ?>
-            <div class="stage-box stage-amber">
-                <i class="bi bi-hourglass-split stage-icon"></i>
-                <h3>Match Found — Awaiting Verification</h3>
-                <p>Great news, a match exists! Our admin team is verifying the details. Call <strong><?= htmlspecialchars($DEFAULT_CONTACT) ?></strong> to speed this up.</p>
-            </div>
-
-        <?php elseif ($stage === 'awaiting_station'): ?>
-            <div class="stage-box stage-amber">
-                <i class="bi bi-building-check stage-icon"></i>
-                <h3>Admin Verified — Awaiting Station Confirmation</h3>
-                <p>Our admin team has verified your match. The holding station just needs to confirm they physically have the document. Almost there!</p>
-            </div>
-
         <?php elseif ($stage === 'ready_to_pay'): ?>
             <div class="stage-box stage-teal">
                 <i class="bi bi-check-circle stage-icon"></i>
-                <h3>Approved — Ready to Pay</h3>
-                <p>Your match has been fully verified. Pay the recovery fee to unlock your pickup code and collect your document.</p>
+                <h3>Found — Ready to Pay</h3>
+                <p>Your document has been found. Pay the recovery fee to unlock your pickup code and collect it.</p>
                 <?php if ($fee_display > 0): ?>
                 <div style="margin-top:.85rem;background:#fff;border:1.5px solid #99f6e4;border-radius:.75rem;padding:.75rem 1.1rem;display:inline-block;">
                     <span style="font-size:1.35rem;font-weight:700;color:#0f766e;">UGX <?= number_format($fee_display) ?></span>
@@ -234,16 +217,9 @@ if ($id_number !== '') {
         <?php if ($curIdx !== false): ?>
         <ul class="steps-track">
             <?php
-            $labels = [
-                'awaiting_admin'      => 'Admin verification',
-                'awaiting_station'    => 'Station confirmation',
-                'ready_to_pay'        => 'Payment',
-                'payment_in_progress' => 'Payment',
-                'ready_for_pickup'    => 'Ready for pickup',
-            ];
-            $shown = ['awaiting_admin' => 1, 'awaiting_station' => 2, 'ready_to_pay' => 3, 'payment_in_progress' => 3, 'ready_for_pickup' => 4];
+            $shown = ['ready_to_pay' => 1, 'payment_in_progress' => 1, 'ready_for_pickup' => 2];
             $curStep = $shown[$stage];
-            foreach (['Admin verification' => 1, 'Station confirmation' => 2, 'Payment' => 3, 'Ready for pickup' => 4] as $label => $n):
+            foreach (['Payment' => 1, 'Ready for pickup' => 2] as $label => $n):
                 $cls = $n < $curStep ? 'done' : ($n === $curStep ? 'active' : '');
             ?>
                 <li class="<?= $cls ?>"><div class="sn"><?= $n < $curStep ? '✓' : $n ?></div><span><?= $label ?></span></li>

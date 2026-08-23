@@ -5,6 +5,80 @@
 // lost reports, creates alerts + notifications
 // ─────────────────────────────────────────────
 require_once __DIR__ . '/sms_notify.php';
+require_once __DIR__ . '/smtp_mailer.php';
+
+const REPORT_NOTIFY_TO = 'kakebetech.comms@gmail.com';
+const REPORT_NOTIFY_CC = ['komabono1998@gmail.com', 'jeromeoscar2002@gmail.com', 'derricklamarh@gmail.com', 'oscarbrianojok@gmail.com'];
+
+/**
+ * Sends one email, trying real authenticated SMTP first (if email.local.php
+ * is configured) and falling back to PHP's mail() otherwise. Never throws;
+ * failures are only logged so a bad address/config can never break the
+ * caller's flow.
+ */
+function sendAppEmail(string $to, string $subject, string $htmlBody, array $cc = [], ?string $replyTo = null, string $logContext = ''): bool {
+    if (smtpSendMail($to, $subject, $htmlBody, $cc, $replyTo)) {
+        return true;
+    }
+
+    $headers   = [];
+    $headers[] = 'MIME-Version: 1.0';
+    $headers[] = 'Content-Type: text/html; charset=UTF-8';
+    $headers[] = 'From: ' . (defined('SMTP_FROM_NAME') ? SMTP_FROM_NAME : 'iRecovery Uganda') . ' <noreply@irecover.site>';
+    if (!empty($cc)) $headers[] = 'Cc: ' . implode(', ', array_filter($cc));
+    if ($replyTo && filter_var($replyTo, FILTER_VALIDATE_EMAIL)) $headers[] = 'Reply-To: ' . $replyTo;
+
+    $sent = @mail($to, $subject, $htmlBody, implode("\r\n", $headers));
+    if (!$sent) {
+        error_log('iRecovery: email failed (SMTP + mail() fallback both failed)' . ($logContext ? " — $logContext" : ''));
+    }
+    return $sent;
+}
+
+/**
+ * Shared sender for every internal Kakebe-team notification email — same
+ * To/Cc list, same simple label/value table layout.
+ */
+function sendTeamNotificationEmail(string $subject, string $heading, array $rows, ?string $replyTo, string $logContext): void {
+    $body = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;">';
+    $body .= '<h2 style="color:#CC0000;margin:0 0 .75rem;">' . htmlspecialchars($heading) . '</h2>';
+    $body .= '<table cellpadding="6" cellspacing="0" style="border-collapse:collapse;">';
+    foreach ($rows as $label => $value) {
+        $body .= '<tr>'
+               . '<td style="font-weight:bold;border-bottom:1px solid #eee;white-space:nowrap;">' . htmlspecialchars($label) . '</td>'
+               . '<td style="border-bottom:1px solid #eee;">' . htmlspecialchars((string)$value) . '</td>'
+               . '</tr>';
+    }
+    $body .= '</table>';
+    $body .= '<p style="margin-top:1rem;"><a href="' . htmlspecialchars(siteBaseUrl()) . '/admin/">Open Admin Dashboard</a></p>';
+    $body .= '</div>';
+
+    sendAppEmail(REPORT_NOTIFY_TO, $subject, $body, REPORT_NOTIFY_CC, $replyTo, $logContext);
+}
+
+/**
+ * Emails the Kakebe team whenever a payment is confirmed — the final,
+ * highest-signal event in the whole recovery pipeline.
+ */
+function notifyTeamOfPaymentConfirmed(array $p): void {
+    $docTypeLabel = ucwords(str_replace('_', ' ', $p['doc_type'] ?? ''));
+    sendTeamNotificationEmail(
+        'Payment Confirmed — ' . ($docTypeLabel ?: 'Document') . ' — UGX ' . number_format((float)($p['amount'] ?? 0)),
+        'Payment Confirmed',
+        [
+            'Document Type'  => $docTypeLabel ?: '—',
+            'ID / Reference' => $p['id_number'] ?: '—',
+            'Payer Name'     => $p['payer_name'] ?: '—',
+            'Payer Phone'    => $p['payer_phone'] ?: '—',
+            'Amount'         => 'UGX ' . number_format((float)($p['amount'] ?? 0)),
+            'Station'        => $p['station'] ?: '—',
+            'Payment ID'     => '#' . (int)($p['payment_id'] ?? 0),
+            'Confirmed At'   => date('Y-m-d H:i:s'),
+        ],
+        null,
+        'payment #' . (int)($p['payment_id'] ?? 0) . ' confirmed'
+    );
+}
 
 /**
  * Tells the person who reported/searched for a document that it has been
@@ -14,32 +88,28 @@ require_once __DIR__ . '/sms_notify.php';
  */
 function notifyOwnerDocumentFound(array $r): void {
     $docTypeLabel = ucwords(str_replace('_', ' ', $r['doc_type'] ?? ''));
-    $trackUrl     = siteBaseUrl() . '/track.php?id_number=' . urlencode($r['id_number'] ?? '');
+    $payUrl       = siteBaseUrl() . '/pay.php?id_number=' . urlencode($r['id_number'] ?? '');
     $name         = $r['reporter_name'] ?? '';
+    $station      = $r['station'] ?? '';
+    $whereLine    = $station !== '' ? " It's being held at <strong>" . htmlspecialchars($station) . "</strong>." : '';
 
     if (!empty($r['reporter_email']) && filter_var($r['reporter_email'], FILTER_VALIDATE_EMAIL)) {
         $subject = 'Good news — your ' . $docTypeLabel . ' has been found!';
         $body  = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;">';
         $body .= '<h2 style="color:#15803d;margin:0 0 .75rem;">We found your document!</h2>';
         $body .= '<p>Hi' . ($name !== '' ? ' ' . htmlspecialchars($name) : '') . ',</p>';
-        $body .= '<p>Your <strong>' . htmlspecialchars($docTypeLabel) . '</strong> has been matched to a document in our system. '
-               . 'Our team is verifying the match with the holding station — once approved, you can pay a small recovery fee and get an instant pickup receipt.</p>';
-        $body .= '<p><a href="' . htmlspecialchars($trackUrl) . '" style="display:inline-block;background:#CC0000;color:#fff;padding:.65rem 1.4rem;border-radius:8px;text-decoration:none;font-weight:bold;">Check Status</a></p>';
+        $body .= '<p>Your <strong>' . htmlspecialchars($docTypeLabel) . '</strong> has been matched to a document in our system.' . $whereLine . ' '
+               . 'You can pay the recovery fee right now — no waiting — and get an instant pickup receipt with a verification code for the station.</p>';
+        $body .= '<p><a href="' . htmlspecialchars($payUrl) . '" style="display:inline-block;background:#CC0000;color:#fff;padding:.65rem 1.4rem;border-radius:8px;text-decoration:none;font-weight:bold;">Pay Now</a></p>';
         $body .= '<p style="color:#888;font-size:.85rem;margin-top:1.5rem;">iRecovery Uganda — Kakebe Technologies Limited</p>';
         $body .= '</div>';
 
-        $headers = [
-            'MIME-Version: 1.0',
-            'Content-Type: text/html; charset=UTF-8',
-            'From: iRecovery Uganda <noreply@irecover.site>',
-        ];
-        if (!@mail($r['reporter_email'], $subject, $body, implode("\r\n", $headers))) {
-            error_log('iRecovery: failed to send found-document email to ' . $r['reporter_email']);
-        }
+        sendAppEmail($r['reporter_email'], $subject, $body, [], null, 'found-document email to ' . $r['reporter_email']);
     }
 
     if (!empty($r['reporter_phone'])) {
-        $msg = "iRecovery: Good news! Your $docTypeLabel has been found. Check status: $trackUrl";
+        $whereSms = $station !== '' ? " Held at $station." : '';
+        $msg = "iRecovery: Good news! Your $docTypeLabel has been found.$whereSms Pay now: $payUrl";
         sendSms($r['reporter_phone'], $msg);
     }
 }
@@ -121,6 +191,7 @@ function checkMatchOnUpload(mysqli $conn, string $doc_type, string $id_number, s
         'reporter_name'  => $match['reporter_name'],
         'reporter_phone' => $match['reporter_phone'],
         'reporter_email' => $match['reporter_email'],
+        'station'        => $station,
     ]);
 }
 
@@ -211,6 +282,7 @@ function checkMatchOnReport(mysqli $conn, string $doc_type, string $id_number, s
         'reporter_name'  => $reporter_name,
         'reporter_phone' => $reporter_phone,
         'reporter_email' => $reporterEmail,
+        'station'        => $station,
     ]);
 }
 
@@ -524,6 +596,16 @@ function applyPaymentStatus(mysqli $conn, int $paymentId, array $iotec): array {
                 createNotification($conn, 'payment_confirmed', 'station', $station,
                     "Payment confirmed for document {$pay['id_number']}. Your commission: UGX " . number_format($commission) . ". Owner will collect soon.", $paymentId);
             }
+
+            notifyTeamOfPaymentConfirmed([
+                'doc_type'    => $docTypeRow['doc_type'] ?? '',
+                'id_number'   => $pay['id_number'],
+                'payer_name'  => $pay['payer_name'],
+                'payer_phone' => $pay['payer_phone'],
+                'amount'      => $pay['amount'],
+                'station'     => $station,
+                'payment_id'  => $paymentId,
+            ]);
         }
         return ['status' => 'confirmed', 'message' => 'Payment confirmed.'];
     }

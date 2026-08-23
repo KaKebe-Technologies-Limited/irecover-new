@@ -388,15 +388,15 @@ $fee = 30000; // Fixed fee UGX 30,000
     </div>
     <div class="text-center" style="font-size:.82rem;margin-top:-.5rem;margin-bottom:1rem;">
         <a href="track.php?id_number=<?= urlencode($raw_id) ?>" style="color:#888;">
-            <i class="bi bi-signpost-split me-1"></i>Not ready yet? Check status
+            <i class="bi bi-signpost-split me-1"></i>Track collection status
         </a>
     </div>
 
     <!-- Mini steps -->
     <ul class="steps-mini">
-        <li><div class="sn">1</div><span>Call our team to confirm your identity and document details.</span></li>
-        <li><div class="sn">2</div><span>Once <strong>admin and the holding station both verify</strong> the match, payment unlocks.</span></li>
-        <li><div class="sn">3</div><span>Pay by Mobile Money, get your <strong>PDF receipt + pickup code</strong>, then collect from the station.</span></li>
+        <li><div class="sn">1</div><span>Pay the recovery fee by <strong>Mobile Money</strong> — right now, no waiting.</span></li>
+        <li><div class="sn">2</div><span>Get an instant <strong>PDF receipt + pickup code</strong>.</span></li>
+        <li><div class="sn">3</div><span>Take the receipt to the holding station to collect your document.</span></li>
     </ul>
 
     <div class="text-center mt-3">

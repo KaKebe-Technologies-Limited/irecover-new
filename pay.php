@@ -1,7 +1,8 @@
 <?php
 // ─────────────────────────────────────────────
 // Pay to Recover — real IOTec Pay Mobile Money collection.
-// Payable only once BOTH admin and station have approved the match.
+// Payable as soon as a match exists (no admin/station approval gate) —
+// the moment a search finds it, the owner can pay right away.
 // No PIN is ever collected here — IOTec prompts the payer on their
 // own phone; we only ever see phone number + name.
 // ─────────────────────────────────────────────
@@ -10,12 +11,12 @@ include_once 'includes/match_engine.php';
 include_once 'includes/iotec_pay.php';
 
 $id_number = trim(strtoupper($_GET['id_number'] ?? $_POST['id_number'] ?? ''));
-$match     = null;   // approved match_alerts + lost_reports row
+$match     = null;   // match_alerts + lost_reports row, not yet paid
 $fee       = 0.0;
 $error     = '';
 $initiated = null;   // ['payment_id' => .., 'transaction_id' => ..] once a collection has been started
 
-function findApprovedMatch(mysqli $conn, string $idNumber): ?array {
+function findPayableMatch(mysqli $conn, string $idNumber): ?array {
     if ($idNumber === '') return null;
     $stmt = $conn->prepare(
         "SELECT ma.id AS alert_id, ma.station, ma.document_id,
@@ -23,7 +24,6 @@ function findApprovedMatch(mysqli $conn, string $idNumber): ?array {
          FROM match_alerts ma
          JOIN lost_reports lr ON lr.id = ma.lost_report_id
          WHERE lr.id_number = ?
-           AND ma.admin_approved = 1 AND ma.station_approved = 1
            AND ma.alert_status NOT IN ('paid','collected','closed')
          ORDER BY ma.created_at DESC LIMIT 1"
     );
@@ -35,7 +35,7 @@ function findApprovedMatch(mysqli $conn, string $idNumber): ?array {
 }
 
 if ($id_number !== '') {
-    $match = findApprovedMatch($conn, $id_number);
+    $match = findPayableMatch($conn, $id_number);
     if ($match) {
         $feeInfo = getFeeConfig($conn, $match['doc_type']);
         $fee = $feeInfo['fee_ugx'];
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['payer_name'])) {
     $payer_phone = preg_replace('/[^0-9]/', '', trim($_POST['payer_phone'] ?? ''));
 
     if (!$match) {
-        $error = 'This document is not yet approved for payment. Please check status again.';
+        $error = 'No payable match found for this document. Please search for it again.';
     } elseif (empty($payer_name) || strlen($payer_phone) < 9 || strlen($payer_phone) > 13) {
         $error = 'Please enter your full name and a valid Mobile Money phone number.';
     } else {
@@ -222,9 +222,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['payer_name'])) {
         <?php if ($id_number): ?>
             <div class="not-approved">
                 <i class="bi bi-hourglass-split"></i>
-                <p>No approved match found for <strong><?= htmlspecialchars($id_number) ?></strong> yet.<br>
-                Your match must be approved by both our admin team and the holding station before you can pay.</p>
-                <a href="track.php?id_number=<?= urlencode($id_number) ?>" class="btn btn-outline-secondary btn-sm mt-2">Check Status</a>
+                <p>No payable match found for <strong><?= htmlspecialchars($id_number) ?></strong>.<br>
+                Search for your document first — once it's found, you can pay right here.</p>
+                <a href="index.php#services" class="btn btn-outline-secondary btn-sm mt-2">Search for Your Document</a>
             </div>
         <?php endif; ?>
         <form method="GET">

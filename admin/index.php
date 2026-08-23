@@ -38,13 +38,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pid = (int)$_POST['payment_id'];
         $conn->query("UPDATE payments SET status='confirmed', confirmed_at=NOW(), download_allowed=1 WHERE id=$pid");
         // Ensure a verification code exists for station-side release
-        $pr = $conn->query("SELECT match_alert_id, verification_code FROM payments WHERE id=$pid")->fetch_assoc();
+        $pr = $conn->query(
+            "SELECT p.match_alert_id, p.verification_code, p.payer_name, p.payer_phone, p.amount, p.id_number,
+                    ma.station, lr.doc_type
+             FROM payments p
+             LEFT JOIN match_alerts ma ON ma.id = p.match_alert_id
+             LEFT JOIN lost_reports lr ON lr.id = ma.lost_report_id
+             WHERE p.id=$pid"
+        )->fetch_assoc();
         if ($pr) {
             if (empty($pr['verification_code'])) {
                 $vcode = generateVerificationCode($conn);
                 $conn->query("UPDATE payments SET verification_code='$vcode' WHERE id=$pid");
             }
             $conn->query("UPDATE match_alerts SET alert_status='paid' WHERE id=" . (int)$pr['match_alert_id']);
+
+            notifyTeamOfPaymentConfirmed([
+                'doc_type'    => $pr['doc_type'] ?? '',
+                'id_number'   => $pr['id_number'],
+                'payer_name'  => $pr['payer_name'],
+                'payer_phone' => $pr['payer_phone'],
+                'amount'      => $pr['amount'],
+                'station'     => $pr['station'],
+                'payment_id'  => $pid,
+            ]);
         }
     }
     // (Kept for compatibility) separate download approval
@@ -311,14 +328,14 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
       </div>
       <div class="table-responsive">
         <table class="dt">
-          <thead><tr><th>#</th><th>Document</th><th>Owner</th><th>Station Holding</th><th>Reporter Contact</th><th>Approval</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+          <thead><tr><th>#</th><th>Document</th><th>Owner</th><th>Station Holding</th><th>Reporter Contact</th><th>Payer Contact</th><th>Approval</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
           <tbody>
           <?php
           $ma = $conn->query("
             SELECT ma.id, ma.alert_status, ma.created_at, ma.station, ma.admin_approved, ma.station_approved,
                    lr.doc_type, lr.sur_name, lr.given_name, lr.reporter_name, lr.reporter_phone,
                    d.id_number, d.dob, d.gender, d.front_img, d.back_img,
-                   p.id as pay_id, p.status as pay_status, p.amount
+                   p.id as pay_id, p.status as pay_status, p.amount, p.payer_name, p.payer_phone
             FROM match_alerts ma
             LEFT JOIN lost_reports lr ON lr.id = ma.lost_report_id
             LEFT JOIN documents d ON d.id = ma.document_id
