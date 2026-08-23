@@ -168,8 +168,9 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
       </a>
       <nav class="sidebar-nav" id="tabBar">
         <a href="../index.php" target="_blank" rel="noopener" class="sidebar-link"><i class="bi bi-box-arrow-up-right"></i> View Website</a>
+        <button class="sidebar-link active" onclick="switchTab(this,'tDashboard')"><i class="bi bi-speedometer2"></i> Dashboard</button>
         <button class="sidebar-link" onclick="switchTab(this,'tDocSearch')"><i class="bi bi-search-heart"></i> Search Documents</button>
-        <button class="sidebar-link active" onclick="switchTab(this,'tMatches')"><i class="bi bi-lightning-charge"></i> Matches<?php if ($matchCount > 0): ?><span class="nb"><?= $matchCount ?></span><?php endif; ?></button>
+        <button class="sidebar-link" onclick="switchTab(this,'tMatches')"><i class="bi bi-lightning-charge"></i> Matches<?php if ($matchCount > 0): ?><span class="nb"><?= $matchCount ?></span><?php endif; ?></button>
         <button class="sidebar-link" id="tabPayments" onclick="switchTab(this,'tPayments')"><i class="bi bi-phone"></i> Payments<?php if ($pendingApproval > 0): ?><span class="nb nb-amber"><?= $pendingApproval ?></span><?php endif; ?></button>
         <button class="sidebar-link" onclick="switchTab(this,'tSearches')"><i class="bi bi-search"></i> Searches</button>
         <button class="sidebar-link" onclick="switchTab(this,'tStations')"><i class="bi bi-building"></i> Stations</button>
@@ -207,6 +208,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
 
   <div class="page">
 
+    <div id="tDashboard" class="tcard">
     <!-- ── Welcome bar ───────────────────────── -->
     <div class="welcome-bar">
       <div>
@@ -275,6 +277,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
       </div>
       <?php endif; ?>
     </div>
+    </div><!-- /#tDashboard -->
 
     <!-- ── Search Documents ─────────────────────── -->
     <div id="tDocSearch" class="tcard" style="display:none;">
@@ -322,7 +325,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
     </div>
 
     <!-- ── Tables ────────────────────────────── -->
-    <div id="tMatches" class="tcard">
+    <div id="tMatches" class="tcard" style="display:none;">
       <div class="section-search">
         <div class="search-box"><i class="bi bi-search"></i><input type="text" placeholder="Search matches by name, ID, station…" oninput="filterSection(this,'tMatches')"></div>
       </div>

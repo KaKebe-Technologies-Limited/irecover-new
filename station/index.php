@@ -183,8 +183,9 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
       </a>
       <nav class="sidebar-nav" id="tabBar">
         <a href="../index.php" target="_blank" rel="noopener" class="sidebar-link"><i class="bi bi-box-arrow-up-right"></i> View Website</a>
+        <button class="sidebar-link active" onclick="switchTab(this,'tDashboard')"><i class="bi bi-speedometer2"></i> Dashboard</button>
         <button class="sidebar-link" onclick="switchTab(this,'tDocSearch')"><i class="bi bi-search-heart"></i> Search Documents</button>
-        <button class="sidebar-link active" id="tabMatches" onclick="switchTab(this,'tMatches')"><i class="bi bi-lightning-charge"></i> Matches<?php if ($alertCount > 0): ?><span class="nb"><?= $alertCount ?></span><?php endif; ?></button>
+        <button class="sidebar-link" id="tabMatches" onclick="switchTab(this,'tMatches')"><i class="bi bi-lightning-charge"></i> Matches<?php if ($alertCount > 0): ?><span class="nb"><?= $alertCount ?></span><?php endif; ?></button>
         <button class="sidebar-link" onclick="switchTab(this,'tFound')"><i class="bi bi-cloud-upload"></i> Found Docs</button>
         <button class="sidebar-link" onclick="switchTab(this,'tVerify')"><i class="bi bi-shield-check"></i> Verify Code</button>
         <button class="sidebar-link" onclick="switchTab(this,'tCollected')"><i class="bi bi-check2-circle"></i> Collected</button>
@@ -221,6 +222,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
     </div>
     <?php unset($_SESSION['collect_error']); endif; ?>
 
+    <div id="tDashboard" class="tcard">
     <!-- ── Welcome bar ───────────────────────── -->
     <div class="welcome-bar">
       <div>
@@ -279,6 +281,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
         <div class="sc-lbl">My Earnings</div>
       </div>
     </div>
+    </div><!-- /#tDashboard -->
 
     <!-- ── Search Documents ─────────────────────── -->
     <div id="tDocSearch" class="tcard" style="display:none;">
@@ -326,7 +329,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
     </div>
 
     <!-- ── Match Alerts ──────────────────────── -->
-    <div id="tMatches" class="tcard">
+    <div id="tMatches" class="tcard" style="display:none;">
       <div class="table-responsive">
         <table class="dt">
           <thead><tr><th>#</th><th>Document</th><th>Owner</th><th>Reporter Contact</th><th>Payer Contact</th><th>Approval</th><th>Your Commission</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
@@ -387,17 +390,25 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
               $mFrontUrl = htmlspecialchars(docImageUrl($r['front_img'] ?? ''));
               $mBackUrl  = htmlspecialchars(docImageUrl($r['back_img']  ?? ''));
               echo "<button class='btn btn-outline btn-sm view-btn mb-1' data-id='$aid' data-type='" . htmlspecialchars(ucwords(str_replace('_', ' ', $r['doc_type'] ?? ''))) . "' data-name='" . htmlspecialchars($r['sur_name'] ?? '') . "' data-second-name='" . htmlspecialchars($r['given_name'] ?? '') . "' data-front-image='$mFrontUrl' data-back-image='$mBackUrl' data-id-number='" . htmlspecialchars($r['id_number'] ?? '') . "' data-dob='" . htmlspecialchars($r['dob'] ?? '') . "' data-gender='" . htmlspecialchars(ucfirst($r['gender'] ?? '')) . "' data-status='" . htmlspecialchars($r['alert_status']) . "' data-date='" . htmlspecialchars($r['created_at']) . "'><i class='bi bi-eye'></i> View</button> ";
+              $reallyPaid = $r['pay_id'] && $r['pay_status'] === 'confirmed';
               if ($r['alert_status'] === 'collected') {
                 echo "<span style='color:var(--green);font-weight:600;'><i class='bi bi-check2-all'></i> Done</span>";
               } else {
                 if (!$stationApproved) {
                   echo "<form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='approve_match_station' class='btn btn-primary btn-sm mb-1'><i class='bi bi-building-check'></i> Confirm It's Ours</button></form> ";
                 }
-                echo "<div class='act-grp'>
-                  <form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='set_status' value='paid' class='btn btn-success btn-sm'><i class='bi bi-cash'></i> Paid</button></form>
-                  <form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='set_status' value='pending' class='btn btn-warning btn-sm'><i class='bi bi-hourglass-split'></i> Pending</button></form>
-                  <button type='button' class='btn btn-teal btn-sm' onclick='openCollectModal($aid, $hasPolice)'><i class='bi bi-check2-circle'></i> Collected</button>
-                </div>";
+                if ($reallyPaid) {
+                  echo "<div class='act-grp'>
+                    <div style='font-size:.76rem;color:var(--muted);margin-bottom:.3rem;'><i class='bi bi-telephone me-1'></i>Call the payer above to verify, then release.</div>
+                    <button type='button' class='btn btn-success btn-sm' onclick='openCollectModal($aid, $hasPolice)'><i class='bi bi-box-arrow-up me-1'></i> Release Document</button>
+                  </div>";
+                } else {
+                  echo "<div class='act-grp'>
+                    <form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='set_status' value='paid' class='btn btn-success btn-sm'><i class='bi bi-cash'></i> Paid</button></form>
+                    <form method='POST' class='d-inline'><input type='hidden' name='alert_id' value='$aid'><button type='submit' name='set_status' value='pending' class='btn btn-warning btn-sm'><i class='bi bi-hourglass-split'></i> Pending</button></form>
+                    <button type='button' class='btn btn-teal btn-sm' onclick='openCollectModal($aid, $hasPolice)'><i class='bi bi-check2-circle'></i> Collected</button>
+                  </div>";
+                }
               }
               echo "</td></tr>";
             endwhile;
