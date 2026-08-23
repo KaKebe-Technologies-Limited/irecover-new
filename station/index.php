@@ -379,7 +379,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
           <tbody>
           <?php
           $hasRows = false;
-          $dStmt = $conn->prepare("SELECT id, doc_type, sur_name, given_name, id_number, front_img, back_img, action, submitted_at FROM documents WHERE station_holding=? ORDER BY submitted_at DESC LIMIT 200");
+          $dStmt = $conn->prepare("SELECT id, doc_type, sur_name, given_name, id_number, dob, gender, front_img, back_img, action, submitted_at FROM documents WHERE station_holding=? ORDER BY submitted_at DESC LIMIT 200");
           $dStmt->bind_param('s', $userId); $dStmt->execute();
           $dRes = $dStmt->get_result(); $dStmt->close();
           if ($dRes && $dRes->num_rows > 0):
@@ -400,12 +400,12 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 <td>" . htmlspecialchars($r['id_number'] ?? '—') . "</td>
                 <td>$ab</td>
                 <td>" . htmlspecialchars($r['submitted_at']) . "</td>
-                <td><button class='btn btn-outline view-btn' data-id='{$r['id']}' data-type='" . htmlspecialchars(ucwords(str_replace('_', ' ', $r['doc_type']))) . "' data-name='" . htmlspecialchars($r['sur_name']) . "' data-second-name='" . htmlspecialchars($r['given_name']) . "' data-front-image='{$frontUrl}' data-back-image='{$backUrl}' data-status='" . htmlspecialchars($r['action']) . "' data-date='" . htmlspecialchars($r['submitted_at']) . "'><i class='bi bi-eye'></i> View</button></td>
+                <td><button class='btn btn-outline view-btn' data-id='{$r['id']}' data-type='" . htmlspecialchars(ucwords(str_replace('_', ' ', $r['doc_type']))) . "' data-name='" . htmlspecialchars($r['sur_name']) . "' data-second-name='" . htmlspecialchars($r['given_name']) . "' data-front-image='{$frontUrl}' data-back-image='{$backUrl}' data-id-number='" . htmlspecialchars($r['id_number'] ?? '') . "' data-dob='" . htmlspecialchars($r['dob'] ?? '') . "' data-gender='" . htmlspecialchars(ucfirst($r['gender'] ?? '')) . "' data-status='" . htmlspecialchars($r['action']) . "' data-date='" . htmlspecialchars($r['submitted_at']) . "'><i class='bi bi-eye'></i> View</button></td>
               </tr>";
             endwhile;
           endif;
 
-          $legStmt = $conn->prepare("SELECT national_id as id,'National ID' as doc_type, sur_name, given_name, nin_number as id_number, front as front_img, back as back_img, user_action as action, date_found as submitted_at FROM national_ids WHERE reporter=? ORDER BY national_id DESC LIMIT 100");
+          $legStmt = $conn->prepare("SELECT national_id as id,'National ID' as doc_type, sur_name, given_name, nin_number as id_number, dob, gender, front as front_img, back as back_img, user_action as action, date_found as submitted_at FROM national_ids WHERE reporter=? ORDER BY national_id DESC LIMIT 100");
           $legStmt->bind_param('s', $userId); $legStmt->execute();
           $legRes = $legStmt->get_result(); $legStmt->close();
           if ($legRes && $legRes->num_rows > 0):
@@ -421,7 +421,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 <td>" . htmlspecialchars($r['id_number']) . "</td>
                 <td>$ab</td>
                 <td>" . htmlspecialchars($r['submitted_at']) . "</td>
-                <td><button class='btn btn-outline view-btn' data-id='{$r['id']}' data-type='{$r['doc_type']}' data-name='" . htmlspecialchars($r['sur_name']) . "' data-second-name='" . htmlspecialchars($r['given_name']) . "' data-front-image='{$frontUrl}' data-back-image='{$backUrl}' data-status='" . htmlspecialchars($r['action']) . "' data-date='" . htmlspecialchars($r['submitted_at']) . "'><i class='bi bi-eye'></i> View</button></td>
+                <td><button class='btn btn-outline view-btn' data-id='{$r['id']}' data-type='{$r['doc_type']}' data-name='" . htmlspecialchars($r['sur_name']) . "' data-second-name='" . htmlspecialchars($r['given_name']) . "' data-front-image='{$frontUrl}' data-back-image='{$backUrl}' data-id-number='" . htmlspecialchars($r['id_number'] ?? '') . "' data-dob='" . htmlspecialchars($r['dob'] ?? '') . "' data-gender='" . htmlspecialchars(ucfirst($r['gender'] ?? '')) . "' data-status='" . htmlspecialchars($r['action']) . "' data-date='" . htmlspecialchars($r['submitted_at']) . "'><i class='bi bi-eye'></i> View</button></td>
               </tr>";
             endwhile;
           endif;
@@ -591,9 +591,12 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
           <div class="detail-row"><div class="detail-label">ID</div><div class="detail-value" id="dPopupId">—</div></div>
           <div class="detail-row"><div class="detail-label">Document Type</div><div class="detail-value" id="dPopupType">—</div></div>
           <div class="detail-row"><div class="detail-label">Surname</div><div class="detail-value" id="dPopupName">—</div></div>
+          <div class="detail-row"><div class="detail-label">Given Name</div><div class="detail-value" id="dPopupGiven">—</div></div>
         </div>
         <div class="col-md-6">
-          <div class="detail-row"><div class="detail-label">Given Name</div><div class="detail-value" id="dPopupGiven">—</div></div>
+          <div class="detail-row"><div class="detail-label">ID / NIN Number</div><div class="detail-value" id="dPopupIdNumber">—</div></div>
+          <div class="detail-row"><div class="detail-label">Date of Birth</div><div class="detail-value" id="dPopupDob">—</div></div>
+          <div class="detail-row"><div class="detail-label">Gender</div><div class="detail-value" id="dPopupGender">—</div></div>
           <div class="detail-row"><div class="detail-label">Status</div><div class="detail-value"><span class="bd" id="dPopupStatus">—</span></div></div>
           <div class="detail-row"><div class="detail-label">Date</div><div class="detail-value" id="dPopupDate">—</div></div>
         </div>
@@ -649,6 +652,9 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
         document.getElementById('dPopupType').textContent   = btn.dataset.type       || '—';
         document.getElementById('dPopupName').textContent   = btn.dataset.name       || '—';
         document.getElementById('dPopupGiven').textContent  = btn.dataset.secondName || '—';
+        document.getElementById('dPopupIdNumber').textContent = btn.dataset.idNumber || '—';
+        document.getElementById('dPopupDob').textContent    = btn.dataset.dob        || '—';
+        document.getElementById('dPopupGender').textContent = btn.dataset.gender     || '—';
         document.getElementById('dPopupDate').textContent   = btn.dataset.date       || '—';
         const sb = document.getElementById('dPopupStatus');
         sb.textContent = btn.dataset.status || '—';

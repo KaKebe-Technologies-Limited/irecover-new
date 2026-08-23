@@ -203,7 +203,7 @@ function searchDocumentsBroad(mysqli $conn, string $query, int $limit = 50): arr
     $results = [];
 
     $stmt = $conn->prepare(
-        "SELECT id, doc_type, sur_name, given_name, dob, id_number, front_img, back_img,
+        "SELECT id, doc_type, sur_name, given_name, dob, id_number, gender, front_img, back_img,
                 station_holding, action, submitted_at
          FROM documents
          WHERE id_number LIKE ? OR sur_name LIKE ? OR given_name LIKE ?

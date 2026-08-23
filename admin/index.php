@@ -294,6 +294,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 <td><button class="btn btn-outline view-btn"
                   data-id="<?= (int)$r['id'] ?>" data-type="<?= htmlspecialchars(ucwords(str_replace('_',' ',$r['doc_type']))) ?>" data-name="<?= htmlspecialchars($r['sur_name']) ?>"
                   data-second-name="<?= htmlspecialchars($r['given_name']) ?>" data-front-image="<?= htmlspecialchars(docImageUrl($r['front_img'], '../')) ?>" data-back-image="<?= htmlspecialchars(docImageUrl($r['back_img'], '../')) ?>"
+                  data-id-number="<?= htmlspecialchars($r['id_number'] ?? '') ?>" data-dob="<?= htmlspecialchars($r['dob'] ?? '') ?>" data-gender="<?= htmlspecialchars(ucfirst($r['gender'] ?? '')) ?>" data-station="<?= htmlspecialchars($r['station_holding'] ?? '') ?>"
                   data-status="<?= htmlspecialchars($r['action']) ?>" data-date="<?= htmlspecialchars($r['submitted_at'] ?? '') ?>"><i class="bi bi-eye"></i> View</button></td>
               </tr>
             <?php endforeach; endif; ?>
@@ -471,16 +472,17 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
           <tbody>
           <?php
           $lostQuery = "
-            SELECT national_id as id, 'National ID' AS document_type, sur_name as owner_name, given_name, front, back, user_action, date_found as reported_at FROM national_ids WHERE user_action='Found'
+            SELECT national_id as id, 'National ID' AS document_type, sur_name as owner_name, given_name, nin_number as id_number, dob, gender, reporter, front, back, user_action, date_found as reported_at FROM national_ids WHERE user_action='Found'
             UNION ALL
-            SELECT student_id as id, 'Student ID' AS document_type, sur_name as owner_name, given_name, front, back, user_action, date_found as reported_at FROM student_ids WHERE user_action='Found'
+            SELECT student_id as id, 'Student ID' AS document_type, sur_name as owner_name, given_name, student_number as id_number, NULL as dob, NULL as gender, reporter, front, back, user_action, date_found as reported_at FROM student_ids WHERE user_action='Found'
             UNION ALL
-            SELECT driver_id as id, 'Driving Permit' AS document_type, sur_name as owner_name, given_name, front, back, user_action, date_found as reported_at FROM driving_permits WHERE user_action='Found'";
+            SELECT driver_id as id, 'Driving Permit' AS document_type, sur_name as owner_name, given_name, permit_number as id_number, dob, NULL as gender, reporter, front, back, user_action, date_found as reported_at FROM driving_permits WHERE user_action='Found'";
           $lost = $conn->query($lostQuery);
           if ($lost && $lost->num_rows > 0):
             while ($row = $lost->fetch_assoc()):
               $frontUrl = htmlspecialchars(docImageUrl($row['front'], '../uploads/'));
               $backUrl  = htmlspecialchars(docImageUrl($row['back'],  '../uploads/'));
+              $genderLbl = htmlspecialchars(ucfirst($row['gender'] ?? ''));
               echo "<tr>
                 <td>{$row['id']}</td>
                 <td><span class='bd bd-blue'>{$row['document_type']}</span></td>
@@ -490,6 +492,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 <td><button class='btn btn-outline view-btn'
                   data-id='{$row['id']}' data-type='{$row['document_type']}' data-name='{$row['owner_name']}'
                   data-second-name='{$row['given_name']}' data-front-image='{$frontUrl}' data-back-image='{$backUrl}'
+                  data-id-number='" . htmlspecialchars($row['id_number'] ?? '') . "' data-dob='" . htmlspecialchars($row['dob'] ?? '') . "' data-gender='$genderLbl' data-station='" . htmlspecialchars($row['reporter'] ?? '') . "'
                   data-status='{$row['user_action']}' data-date='{$row['reported_at']}'><i class='bi bi-eye'></i> View</button></td>
               </tr>";
             endwhile;
@@ -510,15 +513,16 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
           <tbody>
           <?php
           $reported = $conn->query("
-            SELECT national_id as id, 'National ID' AS document_type, sur_name as owner_name, given_name, front, back, user_action, date_found as reported_at FROM national_ids WHERE user_action='Reported'
+            SELECT national_id as id, 'National ID' AS document_type, sur_name as owner_name, given_name, nin_number as id_number, dob, gender, reporter, front, back, user_action, date_found as reported_at FROM national_ids WHERE user_action='Reported'
             UNION ALL
-            SELECT student_id as id, 'Student ID' AS document_type, sur_name as owner_name, given_name, front, back, user_action, date_found as reported_at FROM student_ids WHERE user_action='Reported'
+            SELECT student_id as id, 'Student ID' AS document_type, sur_name as owner_name, given_name, student_number as id_number, NULL as dob, NULL as gender, reporter, front, back, user_action, date_found as reported_at FROM student_ids WHERE user_action='Reported'
             UNION ALL
-            SELECT driver_id as id, 'Driving Permit' AS document_type, sur_name as owner_name, given_name, front, back, user_action, date_found as reported_at FROM driving_permits WHERE user_action='Reported'");
+            SELECT driver_id as id, 'Driving Permit' AS document_type, sur_name as owner_name, given_name, permit_number as id_number, dob, NULL as gender, reporter, front, back, user_action, date_found as reported_at FROM driving_permits WHERE user_action='Reported'");
           if ($reported && $reported->num_rows > 0):
             while ($row = $reported->fetch_assoc()):
               $frontUrl = htmlspecialchars(docImageUrl($row['front'], '../uploads/'));
               $backUrl  = htmlspecialchars(docImageUrl($row['back'],  '../uploads/'));
+              $genderLbl = htmlspecialchars(ucfirst($row['gender'] ?? ''));
               echo "<tr>
                 <td>{$row['id']}</td>
                 <td><span class='bd bd-blue'>{$row['document_type']}</span></td>
@@ -528,6 +532,7 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
                 <td><button class='btn btn-outline view-btn'
                   data-id='{$row['id']}' data-type='{$row['document_type']}' data-name='{$row['owner_name']}'
                   data-second-name='{$row['given_name']}' data-front-image='{$frontUrl}' data-back-image='{$backUrl}'
+                  data-id-number='" . htmlspecialchars($row['id_number'] ?? '') . "' data-dob='" . htmlspecialchars($row['dob'] ?? '') . "' data-gender='$genderLbl' data-station='" . htmlspecialchars($row['reporter'] ?? '') . "'
                   data-status='{$row['user_action']}' data-date='{$row['reported_at']}'><i class='bi bi-eye'></i> View</button></td>
               </tr>";
             endwhile;
@@ -743,9 +748,13 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
           <div class="detail-row"><div class="detail-label">ID</div><div class="detail-value" id="popupId">—</div></div>
           <div class="detail-row"><div class="detail-label">Document Type</div><div class="detail-value" id="popupType">—</div></div>
           <div class="detail-row"><div class="detail-label">Surname</div><div class="detail-value" id="popupName">—</div></div>
+          <div class="detail-row"><div class="detail-label">Given Name</div><div class="detail-value" id="popupSecondName">—</div></div>
+          <div class="detail-row"><div class="detail-label">ID / NIN Number</div><div class="detail-value" id="popupIdNumber">—</div></div>
+          <div class="detail-row"><div class="detail-label">Date of Birth</div><div class="detail-value" id="popupDob">—</div></div>
         </div>
         <div class="col-md-6">
-          <div class="detail-row"><div class="detail-label">Given Name</div><div class="detail-value" id="popupSecondName">—</div></div>
+          <div class="detail-row"><div class="detail-label">Gender</div><div class="detail-value" id="popupGender">—</div></div>
+          <div class="detail-row"><div class="detail-label">Station Holding</div><div class="detail-value" id="popupStation">—</div></div>
           <div class="detail-row"><div class="detail-label">Status</div><div class="detail-value"><span class="bd" id="popupStatusBadge">—</span></div></div>
           <div class="detail-row"><div class="detail-label">Date</div><div class="detail-value" id="popupDate">—</div></div>
         </div>
@@ -819,6 +828,10 @@ $docSearchResults = isset($_GET['doc_search']) ? searchDocumentsBroad($conn, $do
         document.getElementById('popupType').textContent = button.dataset.type || '—';
         document.getElementById('popupName').textContent = button.dataset.name || '—';
         document.getElementById('popupSecondName').textContent = button.dataset.secondName || '—';
+        document.getElementById('popupIdNumber').textContent = button.dataset.idNumber || '—';
+        document.getElementById('popupDob').textContent = button.dataset.dob || '—';
+        document.getElementById('popupGender').textContent = button.dataset.gender || '—';
+        document.getElementById('popupStation').textContent = button.dataset.station || '—';
         document.getElementById('popupDate').textContent = button.dataset.date || '—';
         const status = button.dataset.status || '—';
         const sb = document.getElementById('popupStatusBadge');
