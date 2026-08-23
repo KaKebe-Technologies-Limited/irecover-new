@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────
 include_once 'db.php';
 include_once 'includes/match_engine.php';
+include_once 'includes/email_notify.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: index.php'); exit(); }
 
@@ -133,6 +134,19 @@ $log->bind_param('sssssi', $doc_type, $search_name, $id_number, $searcher_phone,
 $log->execute();
 $log_id = $conn->insert_id;
 $log->close();
+
+// ── Notify the team whenever a search matches, even without a phone ──
+if ($found) {
+    notifyTeamOfSearchMatch([
+        'doc_type'        => $doc_type,
+        'sur_name'         => $found['sur_name'] ?? '',
+        'given_name'       => $found['given_name'] ?? '',
+        'id_number'        => $found['id_number'] ?? $id_number,
+        'station_holding'  => $found['station_holding'] ?? '',
+        'searcher_phone'   => $searcher_phone,
+        'document_id'      => $matched_id,
+    ]);
+}
 
 // ── Notify admins of match with searcher contact
 if ($found && $searcher_phone) {
