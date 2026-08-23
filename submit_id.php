@@ -21,11 +21,39 @@ function genRand(int $len = 6): string {
     return $s;
 }
 
+/**
+ * Moves an uploaded file into uploads/, preserving its real extension.
+ * Returns null when no file was chosen (fine for optional fields), or
+ * throws when a file WAS provided but couldn't actually be saved — the
+ * caller must not proceed to store a URL for a file that doesn't exist.
+ */
 function saveFile(array $file, string $prefix): ?string {
-    if (empty($file['tmp_name'])) return null;
-    $rand = genRand() . '_' . time();
-    $name = $prefix . $rand . '.png';
-    move_uploaded_file($file['tmp_name'], __DIR__ . '/uploads/' . $name);
+    $error = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+    if ($error === UPLOAD_ERR_NO_FILE || empty($file['name'])) {
+        return null;
+    }
+    if ($error !== UPLOAD_ERR_OK) {
+        $msgs = [
+            UPLOAD_ERR_INI_SIZE  => 'That file is too large.',
+            UPLOAD_ERR_FORM_SIZE => 'That file is too large.',
+            UPLOAD_ERR_PARTIAL   => 'The file was only partially uploaded — please try again.',
+        ];
+        throw new RuntimeException($msgs[$error] ?? 'The file could not be uploaded — please try again.');
+    }
+    if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        throw new RuntimeException('The file could not be uploaded — please try again.');
+    }
+
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true)) {
+        $mime = @mime_content_type($file['tmp_name']);
+        $ext  = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'][$mime] ?? 'jpg';
+    }
+
+    $name = $prefix . genRand() . '_' . time() . '.' . $ext;
+    if (!move_uploaded_file($file['tmp_name'], __DIR__ . '/uploads/' . $name)) {
+        throw new RuntimeException('The file could not be saved — please try again.');
+    }
     // Store the full absolute URL so every page (root, /admin/, /station/)
     // can render it directly with no relative-path guesswork.
     return siteBaseUrl() . '/uploads/' . $name;
@@ -51,18 +79,27 @@ $extra2     = trim($_POST['extra2'] ?? '');
 $extra3     = trim($_POST['extra3'] ?? '');
 $rep_phone  = trim($_POST['reporter_phone'] ?? '');
 
-$front_img = saveFile($_FILES['front_img'] ?? [], 'DOC_FRONT_');
-$back_img  = saveFile($_FILES['back_img']  ?? [], 'DOC_BACK_');
+$front_img = null;
+$back_img  = null;
+try {
+    $front_img = saveFile($_FILES['front_img'] ?? [], 'DOC_FRONT_');
+    $back_img  = saveFile($_FILES['back_img']  ?? [], 'DOC_BACK_');
+} catch (RuntimeException $e) {
+    $status  = 'error';
+    $message = $e->getMessage();
+}
 $date_now  = date('Y-m-d H:i:s');
 
 // ── Insert into unified documents table ──────
-$stmt = $conn->prepare(
+$stmt = ($status === 'error') ? null : $conn->prepare(
     "INSERT INTO documents
      (doc_type, sur_name, given_name, dob, gender, id_number, extra_field1, extra_field2, extra_field3,
       front_img, back_img, action, reporter, reporter_phone, station_holding, submitted_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
 );
-if (!$stmt) {
+if ($status === 'error') {
+    // saveFile() already set $message above
+} elseif (!$stmt) {
     $status  = 'error';
     $message = 'Database error: ' . $conn->error;
 } else {
