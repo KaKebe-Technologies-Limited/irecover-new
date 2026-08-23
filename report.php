@@ -6,6 +6,7 @@
 session_start();
 include_once 'db.php';
 include_once 'includes/match_engine.php';
+include_once 'includes/email_notify.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: index.php'); exit(); }
 
@@ -69,6 +70,19 @@ if (!$stmt) {
         // Notify admins of new report
         createNotification($conn, 'new_report', 'admin', null,
             "New lost $doc_type report by $reporter_name ($reporter_phone).", $lost_id);
+
+        // Email the Kakebe team
+        notifyTeamOfLostReport([
+            'doc_type'       => $doc_type,
+            'sur_name'       => $sur_name,
+            'given_name'     => $given_name,
+            'dob'            => $dob,
+            'id_number'      => $id_number,
+            'reporter_name'  => $reporter_name,
+            'reporter_phone' => $reporter_phone,
+            'reporter_email' => $reporter_email,
+            'lost_id'        => $lost_id,
+        ]);
     } else {
         $status  = 'error';
         $message = 'Submission failed. Please try again.';
